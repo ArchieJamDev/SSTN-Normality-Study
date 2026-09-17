@@ -1,0 +1,31 @@
+# Esqueleto del workflow de simulacion (ver notes/DESIGN.md seccion 7).
+# PENDIENTE: dimensionar el matrix una vez corrido el piloto de tiempos
+# (100-200 replicas de una sola celda) — no activar en serio hasta entonces.
+
+name: Simulacion SSTN
+
+on:
+  workflow_dispatch: {}  # disparo manual mientras se dimensiona el diseño
+
+jobs:
+  # Job previo: calibra y cachea la nula del SSTN por n, para que los jobs del
+  # matrix de abajo no la recalculen cada uno (ver DESIGN.md seccion 4 y 7).
+  calibrate-null:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+      - uses: r-lib/actions/setup-r-dependencies@v2
+      - name: Calibrar nula SSTN por n
+        run: Rscript R/06_sstn_null_calibration.R
+      - uses: actions/upload-artifact@v4
+        with:
+          name: null-calibration
+          path: simulations/null_calibration/
+
+  # TODO: job "simulate" con strategy.matrix (familia x n, o dataset x subescala),
+  #       cada shard descarga el artifact null-calibration y escribe su propio
+  #       CSV de resultados como artifact.
+  #
+  # TODO: job final "aggregate" que descarga todos los artifacts del matrix y
+  #       corre R/99_aggregate_results.R.

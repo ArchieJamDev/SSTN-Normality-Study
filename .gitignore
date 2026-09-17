@@ -1,0 +1,21 @@
+# R
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+renv/library/
+renv/staging/
+
+# Salidas grandes de simulación (regenerar vía scripts, no versionar)
+simulations/results/*.csv
+simulations/results/*.rds
+!simulations/results/.gitkeep
+
+# Datos procesados intermedios (regenerar desde data/raw/)
+data/processed/*.csv
+data/processed/*.rds
+!data/processed/.gitkeep
+
+# Sistema
+.DS_Store
+Thumbs.db
