@@ -6,6 +6,9 @@
 #
 # Escribe todo a notes/pilot_sstn_timing.txt ademas de la consola, para que
 # quede como artifact del job.
+#
+# NOTA (confirmado en la primera corrida real): el paquete sstn exporta un
+# UNICO objeto, llamado igual que el paquete -> sstn::sstn(), no sstn.test().
 
 pkgs <- c("sstn", "nortest", "moments", "tseries", "fBasics", "gld", "SimMultiCorrData")
 installed <- rownames(installed.packages())
@@ -25,29 +28,51 @@ print(packageVersion("sstn"))
 cat("\n=== Funciones exportadas por sstn ===\n")
 print(ls("package:sstn"))
 
+cat("\n=== Argumentos de sstn::sstn ===\n")
+print(args(sstn::sstn))
+
 set.seed(20260918)
 
 cat("\n=== Prueba minima: n=50, datos normales ===\n")
 x <- rnorm(50)
-# NOTA: ajustar el nombre real de la funcion segun lo que muestre ls() arriba
-# si sstn.test no es el nombre correcto.
-result <- tryCatch(sstn::sstn.test(x), error = function(e) {
-  cat("sstn::sstn.test no existe o fallo:", conditionMessage(e), "\n")
+result <- tryCatch(sstn::sstn(x), error = function(e) {
+  cat("sstn::sstn fallo:", conditionMessage(e), "\n")
   NULL
 })
 print(result)
 cat("\nEstructura del objeto devuelto:\n")
 str(result)
 
-cat("\n=== Tiempos de calibracion/test por n ===\n")
+cat("\n=== Prueba minima: n=50, datos NO normales (exponencial), para ver rechazo ===\n")
+xe <- rexp(50)
+result_exp <- tryCatch(sstn::sstn(xe), error = function(e) {
+  cat("sstn::sstn fallo:", conditionMessage(e), "\n")
+  NULL
+})
+print(result_exp)
+
+cat("\n=== Tiempos por n (una sola corrida por n, datos normales) ===\n")
 ns <- c(10, 25, 50, 100, 250, 500)
 tiempos <- sapply(ns, function(n) {
   xx <- rnorm(n)
-  t <- system.time(sstn::sstn.test(xx))
+  t <- system.time(sstn::sstn(xx))
   t[["elapsed"]]
 })
 names(tiempos) <- ns
 print(tiempos)
+
+cat("\n=== Tiempos por n (promedio de 5 corridas, para estimar mejor) ===\n")
+tiempos_prom <- sapply(ns, function(n) {
+  ts <- replicate(5, {
+    xx <- rnorm(n)
+    system.time(sstn::sstn(xx))[["elapsed"]]
+  })
+  mean(ts)
+})
+names(tiempos_prom) <- ns
+print(tiempos_prom)
+cat("\nProyeccion a R=10000 replicas por celda (minutos):\n")
+print(round(tiempos_prom * 10000 / 60, 1))
 
 cat("\n=== Version de R y sesion ===\n")
 print(sessionInfo())
