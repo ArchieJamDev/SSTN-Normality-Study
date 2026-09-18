@@ -164,6 +164,13 @@ El sanity check de `R/05_calibration_plasmode.R` (corrida 35380154662, job `plas
 
 Esto es un hallazgo metodológico útil por derecho propio: confirma la importancia de validar con un sanity check numérico (no solo con "convergió sin error") antes de dar por buena una calibración — vale la pena mencionarlo en la sección de métodos del manuscrito como control de calidad del proceso de simulación plasmode.
 
+**Confirmado tras la corrección (corrida 35385335301)**: las 11/11 subescalas convergieron con `method="Mom"` sin necesitar el respaldo `"ML"`. Dos mejoras simultáneas:
+
+- **Precisión**: las diferencias objetivo-réplica (n=5000, una sola réplica por subescala) bajaron a un rango de -0.032 a +0.038 en asimetría y -0.031 a +0.058 en curtosis en exceso — consistente con el orden de magnitud esperado por puro ruido de muestreo a ese n (EE aprox. 0.035 y 0.069 respectivamente bajo normalidad). Compárese con las diferencias de hasta 0.42 con `method="ML"`.
+- **Velocidad**: el ajuste por subescala pasó de 7-221 segundos (`"ML"`) a **5-12 milisegundos** (`"Mom"`) — el job `moments-and-feasibility` completo bajó de 23m40s a 6m17s (el tiempo restante es casi todo instalación de paquetes, igual que los demás jobs).
+
+Con esto, el Bloque 3 (calibración plasmode) queda completamente cerrado y validado: los 11 objetivos reales tienen su GLD ajustada, el generador `generar_plasmode()` está confirmado empíricamente, y `data/processed/plasmode_calibration.csv` es la tabla final de transparencia metodológica para el manuscrito.
+
 ## 9. Pendientes abiertos
 
 - [x] `git init` + primer commit.
@@ -177,5 +184,5 @@ Esto es un hallazgo metodológico útil por derecho propio: confirma la importan
 - [x] Chequeo de factibilidad Fleishman/GLD sobre esos 11 puntos objetivo; decidir método único. Ver secciones 12 y 14: **Fleishman y Polynomial (fifths=sixths=0) infactibles para las 11/11 subescalas; GLD (`fit.fkml`, ML) converge para las 11/11** — método único decidido: GLD.
 - [x] Escribir y correr la versión final `R/04_moments_and_feasibility.R` (ajusta GLD sobre N completo) y el job `moments-and-feasibility` — corrido con éxito (corrida 35375789088), 11/11 convergen, ~23 min de job, ver sección 14. `data/processed/plasmode_calibration.csv` generado con los parámetros GLD finales.
 - [x] Escribir `R/05_calibration_plasmode.R` — ver sección 15. API de `gld::rgl()` confirmada contra fuente real; `generar_plasmode()` implementado + sanity check (job `plasmode-sanity-check`) corrido — ver sección 16.
-- [ ] **Corregir y re-correr**: sanity check reveló que `fit.fkml(method="ML")` no reproducía bien los momentos objetivo (sección 16) — corregido a `method="Mom")` con respaldo a `"ML"`. Pendiente: re-correr `moments-and-feasibility` + `plasmode-sanity-check` con la corrección y confirmar que las diferencias objetivo-réplica bajan a rango de ruido de muestreo.
+- [x] **Corregido y re-corrido**: sanity check reveló que `fit.fkml(method="ML")` no reproducía bien los momentos objetivo (sección 16) — corregido a `method="Mom"`. Confirmado en corrida 35385335301: 11/11 con `"Mom"` (sin necesitar respaldo), diferencias objetivo-réplica ya en rango de ruido de muestreo, y el ajuste pasó de 7-221s a 5-12ms por subescala. **Bloque 3 (calibración plasmode) cerrado.**
 - [ ] Con tiempos reales en mano, dimensionar el matrix del job `simulate` (cuántas celdas por shard) — aunque ya no es estrictamente necesario para caber en 6h, sigue siendo buena idea para paralelizar.
