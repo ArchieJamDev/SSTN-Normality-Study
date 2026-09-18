@@ -3,29 +3,45 @@
 # Version final: para cada una de las 11 subescalas reales (data/processed/*.csv),
 # calcula asimetria y curtosis oficiales (N completo), chequea factibilidad
 # Fleishman y Polynomial (Headrick, 5to orden, fifths=sixths=0), y ajusta la
-# distribucion Lambda Generalizada (GLD, parametrizacion FKML) por maxima
-# verosimilitud directo sobre el N COMPLETO de cada subescala.
+# distribucion Lambda Generalizada (GLD, parametrizacion FKML) sobre el N
+# COMPLETO de cada subescala.
 #
 # Decision de metodo (ver notes/DESIGN.md secciones 12 y 14): tanto Fleishman
 # como Polynomial (con fifths=sixths=0, el unico valor defendible sin un
 # objetivo real de 5to/6to momento, demasiado ruidosos para estimar de forma
 # confiable) resultaron INFACTIBLES para las 11/11 subescalas reales
-# (confirmado en R/04b_pilot_feasibility.R, corrida 35373706154). GLD via
-# gld::fit.fkml(x, method="ML") convergio para las 11/11 (piloto: submuestras
-# de n=2000) -> es el UNICO metodo viable, y ademas es el mismo motor ya usado
-# en el Bloque 2 (platicurtico), dejando un solo mecanismo generador para las
-# dos extensiones propias del estudio (ver DESIGN.md seccion 3).
+# (confirmado en R/04b_pilot_feasibility.R, corrida 35373706154) -> GLD es el
+# UNICO motor viable, y ademas es el mismo ya usado en el Bloque 2
+# (platicurtico), dejando un solo mecanismo generador para las dos
+# extensiones propias del estudio (ver DESIGN.md seccion 3).
+#
+# Metodo de ajuste dentro de GLD: gld::fit.fkml(x, method="Mom") en vez de
+# method="ML" (ver notes/DESIGN.md seccion 16). Confirmado contra la
+# documentacion real de fit.fkml() (search.r-project.org/CRAN/refmans/gld):
+# method="ML" (maxima verosimilitud) NO garantiza que la distribucion
+# ajustada reproduzca exactamente la asimetria/curtosis objetivo -- solo
+# maximiza la verosimilitud del vector de datos crudo. method="Mom" ("method
+# of Moments") SI: "chooses the values of the parameters that minimise the
+# (sum of the squared) difference between the first four sample moments of
+# the data and the first four moments of the fitted distribution" -- que es
+# EXACTAMENTE el objetivo de calibracion declarado en DESIGN.md seccion 3
+# ("se ajusta una distribucion sintetica que reproduzca esos dos momentos").
+# El sanity check con method="ML" (R/05_calibration_plasmode.R, corrida
+# 35380154662) mostro diferencias de hasta 0.42 en curtosis en exceso entre
+# el objetivo y una replica de n=5000 -- demasiado grande para ser solo
+# ruido de muestreo, lo que confirma que ML no estaba calibrando a los
+# momentos exactos. Se usa "Mom" con fallback a "ML" si "Mom" no converge
+# para alguna subescala (columna gld_metodo indica cual se uso, para la
+# tabla de transparencia del manuscrito).
 #
 # Esta version ajusta GLD sobre el N COMPLETO de cada subescala (no una
 # submuestra) porque es un paso de calibracion UNICO por subescala (11 ajustes
 # en total, no un ajuste por replica Monte Carlo) -> la fidelidad extra vale
-# el costo computacional. Se imprime el tiempo real de cada ajuste para
-# confirmar que sigue siendo viable a N completo (el piloto solo lo probo a
-# n=2000).
+# el costo computacional. Se imprime el tiempo real de cada ajuste.
 #
 # Salida: data/processed/plasmode_calibration.csv, una fila por subescala:
 #   archivo, n, asimetria, curtosis_exceso, fleishman_valid, polynomial_valid,
-#   gld_convergio, lambda1..lambda4, segundos_gld
+#   gld_convergio, gld_metodo, lambda1..lambda4, segundos_gld
 # Esta tabla es (a) la tabla de transparencia metodologica para el manuscrito
 # (DESIGN.md seccion 3, punto 5) y (b) el insumo directo de
 # R/05_calibration_plasmode.R, que generara replicas sinteticas a cualquier n
@@ -71,6 +87,7 @@ resultados <- data.frame(
   fleishman_valid = NA,
   polynomial_valid = NA,
   gld_convergio = NA,
+  gld_metodo = NA_character_,
   lambda1 = NA_real_,
   lambda2 = NA_real_,
   lambda3 = NA_real_,
@@ -106,22 +123,35 @@ for (i in seq_along(subscale_files)) {
   )
   resultados$polynomial_valid[i] <- get_valid(pol)
 
+  # method="Mom" (momentos) calibra a los momentos exactos, a diferencia de
+  # "ML" -- ver nota al inicio del archivo y DESIGN.md seccion 16. Si "Mom"
+  # no converge para alguna subescala, se cae a "ML" como respaldo.
   t0 <- Sys.time()
   gld_fit <- tryCatch(
-    gld::fit.fkml(x, method = "ML"),
+    gld::fit.fkml(x, method = "Mom"),
     error = function(e) list(error = conditionMessage(e))
   )
+  metodo_usado <- "Mom"
+  if (!is.null(gld_fit$error)) {
+    gld_fit <- tryCatch(
+      gld::fit.fkml(x, method = "ML"),
+      error = function(e) list(error = conditionMessage(e))
+    )
+    metodo_usado <- "ML (respaldo, Mom no convergio)"
+  }
   resultados$segundos_gld[i] <- as.numeric(Sys.time() - t0, units = "secs")
   resultados$gld_convergio[i] <- is.null(gld_fit$error)
   if (is.null(gld_fit$error)) {
     resultados[i, c("lambda1", "lambda2", "lambda3", "lambda4")] <- as.list(gld_fit$lambda)
+    resultados$gld_metodo[i] <- metodo_usado
   }
 
   cat(sprintf(
-    "%-25s n=%6d  asim=%7.4f  curt.exc=%7.4f  fleishman=%s  polynomial=%s  gld=%s (%.1fs)\n",
+    "%-25s n=%6d  asim=%7.4f  curt.exc=%7.4f  fleishman=%s  polynomial=%s  gld=%s metodo=%s (%.1fs)\n",
     resultados$archivo[i], resultados$n[i], resultados$asimetria[i],
     resultados$curtosis_exceso[i], resultados$fleishman_valid[i],
-    resultados$polynomial_valid[i], resultados$gld_convergio[i], resultados$segundos_gld[i]
+    resultados$polynomial_valid[i], resultados$gld_convergio[i],
+    resultados$gld_metodo[i], resultados$segundos_gld[i]
   ))
 }
 
