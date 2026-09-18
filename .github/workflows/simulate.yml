@@ -79,6 +79,38 @@ jobs:
           name: real-subscales-processed
           path: data/processed/*.csv
 
+  # Piloto para validar contra los paquetes reales (SimMultiCorrData, gld) la
+  # factibilidad Fleishman/GLD sobre los 11 puntos objetivo (asimetria,
+  # curtosis) de las subescalas reales — antes de comprometer la version
+  # final de 04_moments_and_feasibility.R. Depende de extract-subscales
+  # (descarga su artifact a data/processed/).
+  feasibility-pilot:
+    needs: extract-subscales
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::sstn
+            any::nortest
+            any::moments
+            any::tseries
+            any::fBasics
+            any::gld
+            any::SimMultiCorrData
+      - uses: actions/download-artifact@v4
+        with:
+          name: real-subscales-processed
+          path: data/processed
+      - name: Piloto de factibilidad Fleishman/GLD
+        run: Rscript R/04b_pilot_feasibility.R
+      - uses: actions/upload-artifact@v4
+        with:
+          name: feasibility-pilot-log
+          path: notes/feasibility_pilot.txt
+
   # TODO: job "simulate" con strategy.matrix (familia x n, o dataset x subescala).
   #       Cada shard escribe su propio CSV de resultados como artifact.
   #
