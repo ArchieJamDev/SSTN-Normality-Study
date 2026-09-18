@@ -86,15 +86,31 @@ Corrido vía `R/00b_pilot_sstn_timing.R` como job `pilot-timing` del workflow (r
 - **Proyección a R=10.000 réplicas por celda**: 0.6 a 0.9 minutos según n. Para todo el Bloque 1 (48 configuraciones × 6 n × R=10.000, solo el componente SSTN) esto da un estimado de horas, no días — perfectamente viable en un solo job de GitHub Actions sin necesitar el matrix tan agresivo que se había anticipado (el matrix sigue siendo buena idea para paralelizar y acotar el tiempo de espera, pero ya no es estrictamente necesario para que quepa en el límite de 6h por job).
 - **Consecuencia directa sobre el diseño**: `R/06_sstn_null_calibration.R` y el job `calibrate-null` del workflow quedan obsoletos tal como se concibieron — no hace falta cachear nada, `sstn::sstn(x)` se llama directo en cada réplica dentro de `08_run_battery.R`. Se deja el archivo con una nota explicando esto en vez de borrarlo, por si en el futuro se necesita optimizar más.
 
+## 11. Extracción de subescalas reales (18 sep 2026)
+
+Implementado `R/03_extract_real_subscales.R`. Confirmado el separador real de los 4 `data.csv` (dentro de cada zip): **TAB**, pese a la extensión `.csv`.
+
+**Claves de puntuación confirmadas** (además de la clave DASS-42 ya documentada en la sección 5):
+
+- **RIASEC**: columnas `R1-R8, I1-I8, A1-A8, S1-S8, E1-E8, C1-C8`, Likert 1-5, sin ítems inversos (confirmado en `codebook.txt`) — suma directa de los 8 ítems por dimensión.
+- **MACH-IV**: columnas `Q1A..Q20A`, Likert 1-5. Ítems inversos = {3,4,6,7,9,10,11,14,16,17} — confirmado vía [checkpsych.com/tests/mach-iv](https://www.checkpsych.com/tests/mach-iv/), que publica explícitamente la lista de ítems a invertir, y cruzado manualmente contra el contenido/dirección de cada ítem (los que expresan confianza/idealismo — ítems 3,4,6,7,9,10,11,14,16, y el 17 por su doble negación sobre Barnum — se invierten; los que expresan cinismo/manipulación directa quedan tal cual). Puntaje total = suma de los 20 ítems (invertidos donde corresponde) — escala unidimensional, sin subescalas separadas.
+- **RSE**: columnas `Q1-Q10`, Likert 1-4 (0 = no contestó, tratado como faltante). Ítems inversos = {3,5,8,9,10} — clave estándar de Rosenberg (1965), confirmada vía [socy.umd.edu — Using the Rosenberg Self-Esteem Scale](https://socy.umd.edu/about-us/using-rosenberg-self-esteem-scale). Puntaje total = suma de los 10 ítems (invertidos donde corresponde).
+
+Regla general de limpieza: por cada subescala, un caso solo entra al puntaje total si TODOS sus ítems de esa subescala están en rango Likert válido (fuera de rango, vacío o `"NULL"` → faltante) — no se promedia con datos parciales, para no distorsionar artificialmente la forma de la distribución del puntaje total.
+
+Salida: 11 archivos en `data/processed/` (uno por subescala, gitignoreados — se regeneran corriendo el script), vía el job `extract-subscales` del workflow.
+
+**Chequeo exploratorio (no oficial — solo para validar la lógica de extracción antes de comprometerla a R/GitHub, hecho en Python fuera del pipeline)**: los 11 puntajes tienen Ns entre ~39.700 y ~144.200, rangos y mín/máx exactamente los esperados por conteo de ítems × rango Likert (ninguna subescala se sale del rango teórico, lo que confirma que la lógica de reversión/filtrado es correcta). Dato interesante para el Bloque 2: varias subescalas reales ya muestran curtosis en exceso negativa apreciable de forma natural (ej. DASS-Depresión, RIASEC-Investigative/Artistic, todas entre -0.6 y -1.2) — refuerza la relevancia de incluir distribuciones platicúrticas en la simulación, más allá de ser solo el punto débil reportado del SSTN en el paper original. Los valores oficiales (asimetría/curtosis con N completo, para calibración plasmode) se calculan en R dentro de `R/04_moments_and_feasibility.R` — pendiente.
+
 ## 9. Pendientes abiertos
 
 - [x] `git init` + primer commit.
 - [x] Decidir repo público vs. privado en GitHub — público, declarado en el artículo como repositorio de reproducibilidad.
 - [x] Crear el repo en GitHub y configurar el remoto — `github.com/ArchieJamDev/SSTN-Normality-Study`.
 - [x] Piloto de tiempo de cómputo del SSTN vía GitHub Actions — ver sección 10. `R/06_sstn_null_calibration.R` resultó innecesario.
-- [ ] Implementar `R/08_run_battery.R` de verdad con las 9 pruebas clásicas (nortest/moments/tseries/fBasics) + `sstn::sstn()` — en curso.
+- [x] Implementar `R/08_run_battery.R` de verdad con las 9 pruebas clásicas (nortest/moments/tseries/fBasics) + `sstn::sstn()` — confirmado sin errores vía el job `battery-sanity-check` (corrida 35364083008, éxito).
 - [ ] Verificar JB/asimetría vs. D'Agostino-Pearson en código de AssumptionsLab (posible redundancia) — no bloquea este proyecto: aquí cada una de las 9 pruebas clásicas usa su propia función canónica de R, sin ambigüedad (ver sección 10 del código de `08_run_battery.R`).
-- [ ] Calcular asimetría/curtosis real de las 11 subescalas (con los datos ya descargados en `data/raw/`).
-- [ ] Chequeo de factibilidad Fleishman/GLD sobre esos 11 puntos objetivo; decidir método único.
-- [ ] Extraer y limpiar los puntajes de subescala (`data/processed/`) — claves de corrección: DASS (estándar DASS-42, 14 ítems/subescala), RIASEC (6 subescalas del codebook), MACH-IV (unidimensional, 20 ítems), RSE (unidimensional, 10 ítems, ítems inversos a revisar en el codebook).
+- [x] Extraer y limpiar los puntajes de subescala (`data/processed/`) — ver sección 11. Claves de corrección confirmadas para las 4 bases (DASS, RIASEC, MACH-IV, RSE).
+- [ ] Calcular asimetría/curtosis oficial (en R) de las 11 subescalas con N completo — `R/04_moments_and_feasibility.R`, pendiente de implementar. Chequeo exploratorio en Python ya hecho (sección 11) solo para validar la lógica de extracción.
+- [ ] Chequeo de factibilidad Fleishman/GLD sobre esos 11 puntos objetivo; decidir método único — antes de escribir el código final, verificar contra la documentación real los nombres exactos de las funciones de `SimMultiCorrData` (ej. `calc_valid_pdf_skew_kurt` o el nombre que sea) y de `gld` para ajuste por momentos-L, siguiendo el mismo patrón de validación que se usó con `sstn::sstn()` en la sección 10 (no asumir la firma, confirmarla primero con un piloto chico en GitHub Actions).
 - [ ] Con tiempos reales en mano, dimensionar el matrix del job `simulate` (cuántas celdas por shard) — aunque ya no es estrictamente necesario para caber en 6h, sigue siendo buena idea para paralelizar.

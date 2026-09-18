@@ -1,4 +1,4 @@
-# Esqueleto del workflow de simulacion (ver notes/DESIGN.md secciones 4, 7 y 10).
+# Esqueleto del workflow de simulacion (ver notes/DESIGN.md secciones 4, 7, 10 y 11).
 # El job calibrate-null se elimino — resulto innecesario (ver DESIGN.md
 # seccion 10): sstn::sstn() calibra internamente en cada llamada, rapido.
 
@@ -53,6 +53,31 @@ jobs:
             any::SimMultiCorrData
       - name: Correr sanity check de la bateria de 10 pruebas
         run: Rscript R/08_run_battery.R
+
+  # Extrae los puntajes de subescala reales (DASS, RIASEC, MACH-IV, RSE) desde
+  # los .zip crudos en data/raw/ y sube los CSV resultantes como artifact —
+  # son la entrada de 04_moments_and_feasibility.R y de 07_real_data_subsampling.R.
+  extract-subscales:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::sstn
+            any::nortest
+            any::moments
+            any::tseries
+            any::fBasics
+            any::gld
+            any::SimMultiCorrData
+      - name: Extraer subescalas reales (DASS, RIASEC, MACH-IV, RSE)
+        run: Rscript R/03_extract_real_subscales.R
+      - uses: actions/upload-artifact@v4
+        with:
+          name: real-subscales-processed
+          path: data/processed/*.csv
 
   # TODO: job "simulate" con strategy.matrix (familia x n, o dataset x subescala).
   #       Cada shard escribe su propio CSV de resultados como artifact.
