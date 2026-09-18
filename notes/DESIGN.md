@@ -100,6 +100,8 @@ Regla general de limpieza: por cada subescala, un caso solo entra al puntaje tot
 
 Salida: 11 archivos en `data/processed/` (uno por subescala, gitignoreados — se regeneran corriendo el script), vía el job `extract-subscales` del workflow.
 
+**Primer intento falló** (corrida 35365830807): `Error in close.connection(con) : invalid connection`. Causa: `readr::read_tsv()` ya cierra la conexión que se le pasa después de leerla — el `on.exit(close(con))` en `read_zip_csv()` intentaba cerrarla una segunda vez. Corregido quitando ese `close()` explícito.
+
 **Chequeo exploratorio (no oficial — solo para validar la lógica de extracción antes de comprometerla a R/GitHub, hecho en Python fuera del pipeline)**: los 11 puntajes tienen Ns entre ~39.700 y ~144.200, rangos y mín/máx exactamente los esperados por conteo de ítems × rango Likert (ninguna subescala se sale del rango teórico, lo que confirma que la lógica de reversión/filtrado es correcta). Dato interesante para el Bloque 2: varias subescalas reales ya muestran curtosis en exceso negativa apreciable de forma natural (ej. DASS-Depresión, RIASEC-Investigative/Artistic, todas entre -0.6 y -1.2) — refuerza la relevancia de incluir distribuciones platicúrticas en la simulación, más allá de ser solo el punto débil reportado del SSTN en el paper original. Los valores oficiales (asimetría/curtosis con N completo, para calibración plasmode) se calculan en R dentro de `R/04_moments_and_feasibility.R` — pendiente.
 
 ## 9. Pendientes abiertos

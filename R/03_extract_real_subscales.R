@@ -52,12 +52,16 @@ source("R/00_setup.R")
 dir.create("data/processed", showWarnings = FALSE, recursive = TRUE)
 
 #' Lee el data.csv (separado por TAB) que esta dentro de un .zip crudo.
+#'
+#' OJO: readr::read_tsv() ya cierra la conexion que se le pasa despues de
+#' leerla — NO hay que cerrarla de nuevo (un on.exit(close(con)) revienta con
+#' "invalid connection", confirmado en el job extract-subscales, corrida
+#' 35365830807, ver notes/DESIGN.md seccion 11).
 read_zip_csv <- function(zip_path, csv_name = "data.csv") {
   entries <- utils::unzip(zip_path, list = TRUE)$Name
   target <- entries[basename(entries) == csv_name]
   stopifnot(length(target) == 1)
   con <- unz(zip_path, target)
-  on.exit(close(con))
   readr::read_tsv(
     con,
     col_types = readr::cols(.default = readr::col_character()),
