@@ -1,6 +1,6 @@
-# Esqueleto del workflow de simulacion (ver notes/DESIGN.md seccion 7).
-# PENDIENTE: dimensionar el matrix una vez corrido el piloto de tiempos
-# (100-200 replicas de una sola celda) — no activar en serio hasta entonces.
+# Esqueleto del workflow de simulacion (ver notes/DESIGN.md secciones 4 y 7).
+# PENDIENTE: dimensionar el matrix principal una vez visto el resultado del
+# job "pilot-timing" — no activar el resto en serio hasta entonces.
 
 name: Simulacion SSTN
 
@@ -8,9 +8,28 @@ on:
   workflow_dispatch: {}  # disparo manual mientras se dimensiona el diseño
 
 jobs:
-  # Job previo: calibra y cachea la nula del SSTN por n, para que los jobs del
-  # matrix de abajo no la recalculen cada uno (ver DESIGN.md seccion 4 y 7).
+  # Piloto: instala los paquetes, prueba la API real de sstn, y mide tiempos
+  # de calibracion/test a varios n. Corre PRIMERO, antes que nada mas — sus
+  # resultados (notes/pilot_sstn_timing.txt, subido como artifact) son los que
+  # usamos para dimensionar el matrix del job "simulate" de abajo.
+  pilot-timing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+      - name: Correr piloto de tiempos SSTN
+        run: Rscript R/00b_pilot_sstn_timing.R
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pilot-sstn-timing
+          path: notes/pilot_sstn_timing.txt
+
+  # Job previo (para cuando el diseño principal este listo): calibra y cachea
+  # la nula del SSTN por n, para que los jobs del matrix no la recalculen cada
+  # uno (ver DESIGN.md secciones 4 y 7).
   calibrate-null:
+    needs: pilot-timing
+    if: false  # activar manualmente una vez implementado 06_sstn_null_calibration.R de verdad
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,8 +43,9 @@ jobs:
           path: simulations/null_calibration/
 
   # TODO: job "simulate" con strategy.matrix (familia x n, o dataset x subescala),
-  #       cada shard descarga el artifact null-calibration y escribe su propio
-  #       CSV de resultados como artifact.
+  #       dimensionado con los tiempos reales del job pilot-timing. Cada shard
+  #       descarga el artifact null-calibration y escribe su propio CSV de
+  #       resultados como artifact.
   #
   # TODO: job final "aggregate" que descarga todos los artifacts del matrix y
   #       corre R/99_aggregate_results.R.
