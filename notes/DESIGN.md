@@ -38,7 +38,7 @@ Dado que el Bloque 2 (platicúrtico) ya usa la familia GLD, si la factibilidad l
 
 El paper original usa R=1000. El error estándar de una tasa de rechazo estimada para p≈.05 da un IC95% de aproximadamente [.037,.064] — coincide casi exactamente con la banda de error tipo I que ellos reportan, lo que sugiere que esa banda es sobre todo ruido de Monte Carlo, no una falla real de calibración. Con 10 pruebas a comparar (vs. 5 del original), conviene subir a **R=10.000-20.000** para poder distinguir diferencias finas entre pruebas cercanas en potencia.
 
-**Optimización de cómputo clave**: la calibración de la nula del SSTN depende solo de (n, M, T, β), no del dataset ni de la distribución alternativa. Calibrar la nula UNA sola vez por cada n usado y cachearla (carpeta `simulations/null_calibration/`), reutilizándola en todas las réplicas de todas las distribuciones alternativas a ese n, y también en el bloque de remuestreo de datos reales cuando coincida el n. Sin esto, el costo de recalibrar en cada réplica hace inviable subir R.
+**Actualizado tras el piloto real (18 sep 2026, ver sección 10)**: la premisa original de esta sección — que había que cachear la nula del SSTN por separado para no recalibrar en cada réplica — **no aplica**. `sstn::sstn()` calibra internamente en cada llamada (finito para n chico, asintótico para n grande) y aun así tarda 4-9 milisegundos por llamada. R=10.000 réplicas en un solo n toma bajo 1 minuto. No hace falta ninguna capa externa de caché de la nula — se llama `sstn::sstn(x)` directo en cada réplica, igual que cualquier otra prueba de la batería. Esto simplifica bastante el diseño original de esta sección (y de `R/06_sstn_null_calibration.R`, ver sección 10).
 
 ## 5. Datasets reales — selección final
 
@@ -69,18 +69,32 @@ Paso compartido: calibrar y cachear la nula del SSTN por n como job/artifact pre
 
 Caché de dependencias de R vía `r-lib/actions/setup-r-dependencies` (o `renv`) para no reinstalar paquetes en cada job del matrix.
 
-Decisión pendiente: repo público (gratis, sin límite práctico de minutos, mejor para reproducibilidad ante la revista) vs. privado (cuota mensual limitada).
+**Decidido**: repo público en GitHub — minutos de Actions ilimitados en runners estándar, y se declarará vinculado al artículo (mencionado en la sección de disponibilidad de datos/código del manuscrito para AJS) como repositorio de reproducibilidad.
 
 ## 8. Journal objetivo
 
 Austrian Journal of Statistics — mismo journal que el artículo de AssumptionsLab ya en marcha, mismo flujo de trabajo en Overleaf/LaTeX cuando llegue el momento de redactar.
 
+## 10. Resultados del piloto real en GitHub Actions (18 sep 2026)
+
+Corrido vía `R/00b_pilot_sstn_timing.R` como job `pilot-timing` del workflow (repo público, runners `ubuntu-latest`, R 4.6.1, instalación con `r-lib/actions/setup-r-dependencies@v2`). Log completo: artifact `pilot-sstn-timing` de la corrida 35363053764.
+
+- **API real**: el paquete `sstn` (v1.0.2) exporta un único objeto, `sstn::sstn(x, verbose = TRUE)` — no `sstn.test()` como se asumió al escribir los scripts iniciales. No hay parámetros expuestos para M/T/β (el paper los describe, pero el paquete los maneja internamente con valores fijos — no configurables desde la interfaz pública).
+- **Salida**: lista con `$method` (string, indica si usó calibración de muestra finita o aproximación asintótica — el corte observado está en algún punto entre n=50 y n=100), `$test.statistic`, `$p.value`.
+- **Sanity check**: con n=50 datos normales, p=.897 (no rechaza, correcto); con n=50 datos exponenciales, estadístico=24.34, p≈0 (rechaza con fuerza, correcto).
+- **Tiempos reales** (promedio de 5 corridas por n, datos normales): n=10→3.8ms, 25→4.0ms, 50→4.2ms, 100→4.0ms, 250→4.6ms, 500→5.4ms. Prácticamente plano en n — nada de la explosión de costo que se anticipaba.
+- **Proyección a R=10.000 réplicas por celda**: 0.6 a 0.9 minutos según n. Para todo el Bloque 1 (48 configuraciones × 6 n × R=10.000, solo el componente SSTN) esto da un estimado de horas, no días — perfectamente viable en un solo job de GitHub Actions sin necesitar el matrix tan agresivo que se había anticipado (el matrix sigue siendo buena idea para paralelizar y acotar el tiempo de espera, pero ya no es estrictamente necesario para que quepa en el límite de 6h por job).
+- **Consecuencia directa sobre el diseño**: `R/06_sstn_null_calibration.R` y el job `calibrate-null` del workflow quedan obsoletos tal como se concibieron — no hace falta cachear nada, `sstn::sstn(x)` se llama directo en cada réplica dentro de `08_run_battery.R`. Se deja el archivo con una nota explicando esto en vez de borrarlo, por si en el futuro se necesita optimizar más.
+
 ## 9. Pendientes abiertos
 
-- [ ] Verificar JB/asimetría vs. D'Agostino-Pearson en código de AssumptionsLab (posible redundancia).
+- [x] `git init` + primer commit.
+- [x] Decidir repo público vs. privado en GitHub — público, declarado en el artículo como repositorio de reproducibilidad.
+- [x] Crear el repo en GitHub y configurar el remoto — `github.com/ArchieJamDev/SSTN-Normality-Study`.
+- [x] Piloto de tiempo de cómputo del SSTN vía GitHub Actions — ver sección 10. `R/06_sstn_null_calibration.R` resultó innecesario.
+- [ ] Implementar `R/08_run_battery.R` de verdad con las 9 pruebas clásicas (nortest/moments/tseries/fBasics) + `sstn::sstn()` — en curso.
+- [ ] Verificar JB/asimetría vs. D'Agostino-Pearson en código de AssumptionsLab (posible redundancia) — no bloquea este proyecto: aquí cada una de las 9 pruebas clásicas usa su propia función canónica de R, sin ambigüedad (ver sección 10 del código de `08_run_battery.R`).
 - [ ] Calcular asimetría/curtosis real de las 11 subescalas (con los datos ya descargados en `data/raw/`).
 - [ ] Chequeo de factibilidad Fleishman/GLD sobre esos 11 puntos objetivo; decidir método único.
 - [ ] Extraer y limpiar los puntajes de subescala (`data/processed/`) — claves de corrección: DASS (estándar DASS-42, 14 ítems/subescala), RIASEC (6 subescalas del codebook), MACH-IV (unidimensional, 20 ítems), RSE (unidimensional, 10 ítems, ítems inversos a revisar en el codebook).
-- [ ] Piloto de tiempo de cómputo del SSTN (calibración de nula + estadístico) para dimensionar R y el matrix de GitHub Actions.
-- [ ] `git init` + primer commit (pendiente, se hace desde esta máquina).
-- [ ] Decidir repo público vs. privado en GitHub.
+- [ ] Con tiempos reales en mano, dimensionar el matrix del job `simulate` (cuántas celdas por shard) — aunque ya no es estrictamente necesario para caber en 6h, sigue siendo buena idea para paralelizar.
