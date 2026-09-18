@@ -26,6 +26,21 @@
 
 source("R/00_setup.R")
 
+#' Extrae el flag de factibilidad de lo que devuelve find_constants().
+#'
+#' Confirmado empiricamente (corrida fallida, ver notes/DESIGN.md seccion 12):
+#' find_constants() NO siempre devuelve una lista con $valid. Cuando falla
+#' por completo (no encuentra ninguna constante, ni siquiera invalida) puede
+#' devolver un vector atomico suelto en vez de una lista — acceder a $valid
+#' ahi tira "$ operator is invalid for atomic vectors". Ademas, cuando SI es
+#' una lista, $valid es un STRING "TRUE"/"FALSE", no un logico — isTRUE()
+#' nunca lo detecta. Esta funcion cubre ambos casos.
+get_valid <- function(res) {
+  if (!is.list(res) || is.null(res$valid)) return(FALSE)
+  v <- res$valid
+  isTRUE(v) || identical(v, "TRUE")
+}
+
 dir.create("notes", showWarnings = FALSE)
 log_con <- file("notes/feasibility_pilot.txt", open = "wt")
 sink(log_con, split = TRUE)
@@ -76,7 +91,7 @@ for (i in seq_len(nrow(targets))) {
     error = function(e) list(valid = FALSE, error = conditionMessage(e))
   )
   fleishman_results$segundos[i] <- as.numeric(Sys.time() - t0, units = "secs")
-  fleishman_results$valid[i] <- isTRUE(res$valid)
+  fleishman_results$valid[i] <- get_valid(res)
   cat(sprintf(
     "  %-25s valid=%s (%.2fs)\n",
     targets$archivo[i], fleishman_results$valid[i], fleishman_results$segundos[i]
@@ -102,7 +117,7 @@ for (i in seq_len(nrow(targets))) {
     error = function(e) list(valid = FALSE, error = conditionMessage(e))
   )
   polynomial_results$segundos[i] <- as.numeric(Sys.time() - t0, units = "secs")
-  polynomial_results$valid[i] <- isTRUE(res$valid)
+  polynomial_results$valid[i] <- get_valid(res)
   cat(sprintf(
     "  %-25s valid=%s (%.2fs)\n",
     targets$archivo[i], polynomial_results$valid[i], polynomial_results$segundos[i]
