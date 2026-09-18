@@ -134,6 +134,26 @@ Corrida exitosa: `R/04b_pilot_feasibility.R` corrió sin errores tras la correcc
 
 **Ajuste al pasar a producción**: la versión final `R/04_moments_and_feasibility.R` ajusta GLD sobre el **N completo** de cada subescala (no la submuestra de n=2000 usada en el piloto solo por velocidad), porque es un paso de calibración único por subescala (11 ajustes en total, no uno por réplica Monte Carlo) — la fidelidad adicional vale el costo computacional, y el tiempo real a N completo se confirma corriendo el script en el job `moments-and-feasibility` (no se pilotea aparte: la API y el comportamiento de `fit.fkml()` ya están confirmados empíricamente, solo falta ver el tiempo a escala real).
 
+**Confirmado en producción (corrida 35375789088, job `moments-and-feasibility`, 23m40s total)**: las 11/11 convergieron a N completo (39.775 a 144.233 casos según subescala). Tiempo de ajuste GLD por subescala: entre 7.2s (`dass_depression`, n=39.775) y 221.3s (`riasec_investigative`, n=144.233) — suma total ≈17 minutos de los 23m40s del job (el resto, ~5-6 min, es la instalación de paquetes de R, igual que en los demás jobs). El tiempo NO escala de forma simple con N ni con la magnitud de la curtosis objetivo — p. ej. `dass_depression` (curtosis en exceso más extrema del set, -1.1549) fue el ajuste más rápido de todos (7.2s), mientras que `riasec_investigative` y `riasec_realistic`, con N casi idéntico, difieren en más del doble de tiempo (221.3s vs. 131.7s) — aparenta ser una cuestión de cuántas iteraciones necesita el optimizador de `fit.fkml()` para converger desde sus valores iniciales, no del tamaño de muestra en sí. En cualquier caso, el total (~23 min) es perfectamente viable como un job único de GitHub Actions, muy por debajo del límite de 6h.
+
+Salida final guardada: `data/processed/plasmode_calibration.csv` — una fila por subescala con `n`, `asimetria`, `curtosis_exceso`, `fleishman_valid`, `polynomial_valid`, `gld_convergio`, `lambda1..lambda4` (parámetros FKML ajustados) y `segundos_gld`. Esta tabla es el insumo directo de `R/05_calibration_plasmode.R` (generación de réplicas sintéticas vía `gld::rgl()` a cualquier n) y la tabla de transparencia metodológica del manuscrito.
+
+## 15. API de `gld::rgl()` confirmada + generador plasmode (18 sep 2026)
+
+Antes de escribir `R/05_calibration_plasmode.R` se confirmó la firma real de `gld::rgl()` contra la documentación de CRAN (`search.r-project.org/CRAN/refmans/gld`) y el código fuente del paquete (`github.com/cran/gld`), no por memoria:
+
+```r
+rgl(n, lambda1 = 0, lambda2 = NULL, lambda3 = NULL, lambda4 = NULL,
+    param = "fkml", lambda5 = NULL)
+```
+
+- `param = "fkml"` es el valor por defecto y es la **misma parametrización** que usa `gld::fit.fkml()` (Freimer-Mudholkar-Kollia-Lin) — no hace falta traducir entre parametrizaciones distintas de la GLD.
+- `lambda1` puede pasarse como escalar (con `lambda2/3/4` sueltos) **o como un vector de longitud 4** con los 4 parámetros juntos — confirmado en `.gl.parameter.tidy()` (detecta `length(lambda1) > 1` y lo pasa tal cual a `gl.check.lambda()`, que indexa `lambda[1..4]`). Se usa esta forma vectorizada: `gld::rgl(n, lambda1 = c(l1,l2,l3,l4), param = "fkml")`.
+
+Implementado `R/05_calibration_plasmode.R`: función `generar_plasmode(archivo, n)` (usa la tabla `data/processed/plasmode_calibration.csv`) + un sanity check que genera una réplica de n=5000 por cada una de las 11 subescalas y compara asimetría/curtosis empírica contra el objetivo real — corre en el job `plasmode-sanity-check` del workflow (depende de `moments-and-feasibility`).
+
+**Nota sobre artifacts con múltiples paths sin ancestro común**: el artifact `plasmode-calibration` (subido con `data/processed/plasmode_calibration.csv` Y `notes/moments_and_feasibility.txt` juntos) preserva el prefijo completo de cada archivo desde la raíz del repo al no tener un directorio ancestro común — confirmado porque el usuario lo bajó con `gh run download` sin `--path` y el archivo apareció en `<destino>/notes/moments_and_feasibility.txt`. Por eso el job `plasmode-sanity-check` lo descarga a la raíz del workspace (`path: .`) en vez de a `data/processed`, para no anidarlo dos veces.
+
 ## 9. Pendientes abiertos
 
 - [x] `git init` + primer commit.
@@ -145,5 +165,6 @@ Corrida exitosa: `R/04b_pilot_feasibility.R` corrió sin errores tras la correcc
 - [x] Extraer y limpiar los puntajes de subescala (`data/processed/`) — ver sección 11. Claves de corrección confirmadas para las 4 bases (DASS, RIASEC, MACH-IV, RSE).
 - [ ] Calcular asimetría/curtosis oficial (en R) de las 11 subescalas con N completo — `R/04_moments_and_feasibility.R`, pendiente de implementar. Chequeo exploratorio en Python ya hecho (sección 11) solo para validar la lógica de extracción.
 - [x] Chequeo de factibilidad Fleishman/GLD sobre esos 11 puntos objetivo; decidir método único. Ver secciones 12 y 14: **Fleishman y Polynomial (fifths=sixths=0) infactibles para las 11/11 subescalas; GLD (`fit.fkml`, ML) converge para las 11/11** — método único decidido: GLD.
-- [ ] Escribir y correr la versión final `R/04_moments_and_feasibility.R` (ajusta GLD sobre N completo, no la submuestra del piloto) y el job `moments-and-feasibility` del workflow — ya escritos y subidos, pendiente de correr y confirmar tiempos reales a N completo.
+- [x] Escribir y correr la versión final `R/04_moments_and_feasibility.R` (ajusta GLD sobre N completo) y el job `moments-and-feasibility` — corrido con éxito (corrida 35375789088), 11/11 convergen, ~23 min de job, ver sección 14. `data/processed/plasmode_calibration.csv` generado con los parámetros GLD finales.
+- [x] Escribir `R/05_calibration_plasmode.R` — ver sección 15. API de `gld::rgl()` confirmada contra fuente real; `generar_plasmode()` implementado + sanity check (job `plasmode-sanity-check`) — pendiente de correr para confirmar que las réplicas generadas reproducen bien el objetivo.
 - [ ] Con tiempos reales en mano, dimensionar el matrix del job `simulate` (cuántas celdas por shard) — aunque ya no es estrictamente necesario para caber en 6h, sigue siendo buena idea para paralelizar.

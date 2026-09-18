@@ -146,6 +146,48 @@ jobs:
             data/processed/plasmode_calibration.csv
             notes/moments_and_feasibility.txt
 
+  # Sanity check del generador plasmode (Bloque 3): genera 1 replica de
+  # n=5000 por subescala vía gld::rgl() con los parametros de
+  # plasmode_calibration.csv y compara asimetria/curtosis empirica contra el
+  # objetivo real, antes de usar el generador en la simulacion completa.
+  # Depende de moments-and-feasibility (descarga su artifact
+  # plasmode-calibration).
+  plasmode-sanity-check:
+    needs: moments-and-feasibility
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::sstn
+            any::nortest
+            any::moments
+            any::tseries
+            any::fBasics
+            any::gld
+            any::SimMultiCorrData
+      - uses: actions/download-artifact@v4
+        with:
+          # OJO: el artifact plasmode-calibration se subio con DOS paths sin
+          # ancestro comun (data/processed/plasmode_calibration.csv Y
+          # notes/moments_and_feasibility.txt), asi que preserva ambos
+          # prefijos completos desde la raiz del repo (confirmado: el
+          # usuario lo bajo con `gh run download` sin --path y el archivo
+          # aparecio en <destino>/notes/moments_and_feasibility.txt, con el
+          # prefijo "notes/" intacto). Por eso se descarga a la raiz del
+          # workspace (".") en vez de a "data/processed" -- si se apuntara
+          # ahi quedaria anidado en data/processed/data/processed/*.csv.
+          name: plasmode-calibration
+          path: .
+      - name: Sanity check del generador plasmode (gld::rgl)
+        run: Rscript R/05_calibration_plasmode.R
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plasmode-sanity-check-log
+          path: notes/plasmode_sanity_check.txt
+
   # TODO: job "simulate" con strategy.matrix (familia x n, o dataset x subescala).
   #       Cada shard escribe su propio CSV de resultados como artifact.
   #
