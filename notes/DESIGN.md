@@ -280,6 +280,8 @@ Implementado `R/02_simulation_platykurtic.R` — mismo patrón que `01_simulatio
 - [x] Escribir y correr el job final `simulate-classical` (matrix de 8 familias, R=10.000) — corrida 35431776551, 8/8 shards exitosos. **Bloque 1 cerrado** — ver sección 22.
 - [x] Cerrar diseño del Bloque 2 (familia Beta(a,a), a∈{0.5,1,2,3,5,10}) — ver sección 23. `R/02_simulation_platykurtic.R` escrito, job `platykurtic-timing-pilot` agregado.
 - [ ] Correr `simulate-platykurtic` (Bloque 2, directo a R=10.000 — ver sección 25) y validar el patrón de NA del CSV resultante, igual que con el Bloque 1.
+- [x] Cerrar el n_max de los Bloques 2/3 — **n_max=1500**, ver sección 26 (saturación de potencia + escalera del Bloque 4 + distribución real de tamaños muestrales en la literatura). Grid final: {10,25,50,100,250,500,1000,1500}.
+- [ ] Correr/confirmar los puntos exploratorios n=1000 y n=1500 del Bloque 2 (job `platykurtic-explore-n-alto`) y armar el CSV final concatenado con el grid canónico (10-500).
 
 ## 24. Inputs de `workflow_dispatch` para no re-correr bloques ya cerrados (19 sep 2026)
 
@@ -288,3 +290,15 @@ Implementado `R/02_simulation_platykurtic.R` — mismo patrón que `01_simulatio
 ## 25. Se elimina el piloto de tiempos como paso obligatorio (19 sep 2026)
 
 La justificación original de pilotear con R=200 antes de comprometer R=10.000 (secciones 7 y 17) era evitar pasarse del límite de 6h por job de GitHub Actions. Con el Bloque 1 completo (sección 21) ya hay evidencia real de que ninguna de las 8 familias se acerca a ese límite (18-40 min a R=10.000, costo por réplica similar entre distribuciones) — seguir midiendo tiempos con un piloto aparte ya no aporta nada. Para el Bloque 2 (y bloques futuros con generadores simples de una sola llamada, ej. `rbeta()`) se va directo a R=10.000: `simulate-platykurtic` reemplaza al job `platykurtic-timing-pilot`. La validación de calidad de los resultados (patrón de NA, valores fuera de rango) se sigue haciendo después de la corrida sobre el CSV final, igual que con el Bloque 1 (sección 22) — eso no tiene costo de cómputo adicional, es solo revisión de datos.
+
+## 26. n_max de los Bloques 2/3 — cerrado en n=1500 (19 sep 2026)
+
+El grid de n del Bloque 1 (10 a 500) es una restricción de réplica del paper original, no elegible. Para los Bloques 2 y 3 (diseño propio) se evaluaron tres justificaciones para el techo de n, que terminan apuntando en la misma dirección:
+
+1. **Saturación empírica de potencia**: con `weibull` k=3 del Bloque 1 como referencia, a n=500 la tasa de rechazo todavía está lejos de 1 para varias pruebas — hay margen real para seguir observando el comportamiento de las 10 pruebas más allá de n=500.
+2. **Escalera de n real del Bloque 4** (remuestreo sobre datos reales, sección 6): criterio de Nunnally (10 obs/ítem) específico por instrumento da mínimos de 80 (RIASEC, 8 ítems) a 200 (MACH-IV, 20 ítems); con un multiplicador razonable sobre esos mínimos, el rango real de n en las submuestras del Bloque 4 termina entre ~800 y ~2.000 según el instrumento.
+3. **Distribución de tamaños muestrales en la literatura publicada de constructos sociales**: n=200-500 es el rango que domina en estudios publicados; n=1000-1500 es minoritario pero realista, típico de estudios con muestras grandes recolectadas online — justo el tipo de dato que alimenta el Bloque 4 (datasets de openpsychometrics.org).
+
+**Decisión final**: n_max=1500 para los Bloques 2 y 3. El grid queda así: n∈{10,25,50,100,250,500} (cobertura densa del rango que domina en la práctica publicada, y comparabilidad directa con el Bloque 1) + puntos de extensión en n=1000 y n=1500 (extremo alto, menos común pero plausible, y compatible con el rango real de las submuestras del Bloque 4). No hace falta esperar a cerrar el multiplicador exacto de la escalera del Bloque 4 para fijar este número — las tres justificaciones convergen en el mismo orden de magnitud sin depender de ese detalle.
+
+`R/02_simulation_platykurtic.R` acepta un tercer argumento opcional (`n_list`, ej. `Rscript R/02_simulation_platykurtic.R beta 10000 1000,1500`) para correr celdas de n puntuales sin repetir el grid por defecto (10-500) ya cubierto — el resultado sale a un archivo con sufijo `_nXXX` que se concatena directo con la corrida canónica (10-500), sin volver a correr nada. Pendiente: correr/confirmar los puntos n=1000 y n=1500 (job `platykurtic-explore-n-alto`) y armar el CSV final concatenado del Bloque 2 con el grid completo {10,25,50,100,250,500,1000,1500}.

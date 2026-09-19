@@ -21,23 +21,37 @@
 # No se usa GLD aca (queda reservado para el Bloque 3, calibracion a datos
 # reales) -- un solo motor generador simple, sin mezclar mecanismos.
 #
-# n in {10,25,50,100,250,500} y R=10000 -- mismo grid que el Bloque 1, para
-# poder comparar directamente entre bloques (ver DESIGN.md seccion 4).
+# n grid por defecto {10,25,50,100,250,500} -- igual al Bloque 1. n_max
+# cerrado en 1500 (ver DESIGN.md seccion 26): grid final del bloque es
+# {10,25,50,100,250,500,1000,1500}, con 1000/1500 corridos aparte via el
+# tercer argumento de linea de comandos para no repetir el grid por defecto
+# ya validado -- ver mas abajo.
 #
-# Uso: Rscript R/02_simulation_platykurtic.R <familia> [R]
+# Uso: Rscript R/02_simulation_platykurtic.R <familia> [R] [n_list]
 #   <familia>: por ahora solo "beta" (unica familia definida en este bloque)
-#   [R]: numero de replicas Monte Carlo (default 10000; R chico para pilotear
-#        antes de comprometer la corrida completa, mismo patron que el Bloque 1)
+#   [R]: numero de replicas Monte Carlo (default 10000)
+#   [n_list]: lista de tamaños de muestra separados por coma (ej. "1000" o
+#             "1000,1500"). Default: "10,25,50,100,250,500". Si se pasa un
+#             grid distinto al default, el archivo de salida queda con sufijo
+#             _nXXX para no pisar la corrida canonica -- ver mas abajo.
 
 source("R/00_setup.R")
 source("R/08_run_battery.R")
 
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) < 1) {
-  stop("Uso: Rscript R/02_simulation_platykurtic.R <familia> [R]")
+  stop("Uso: Rscript R/02_simulation_platykurtic.R <familia> [R] [n_list]")
 }
 familia_elegida <- args[1]
 R_replicas <- if (length(args) >= 2) as.integer(args[2]) else 10000L
+
+n_grid_default <- c(10, 25, 50, 100, 250, 500)
+n_grid <- if (length(args) >= 3) {
+  as.integer(strsplit(args[3], ",")[[1]])
+} else {
+  n_grid_default
+}
+es_grid_default <- identical(sort(n_grid), sort(n_grid_default))
 
 fam_generadores <- list(
   beta = function(n, a) stats::rbeta(n, shape1 = a, shape2 = a)
@@ -46,8 +60,6 @@ fam_generadores <- list(
 fam_parametros <- list(
   beta = c(0.5, 1, 2, 3, 5, 10)
 )
-
-n_grid <- c(10, 25, 50, 100, 250, 500)
 
 if (!familia_elegida %in% names(fam_generadores)) {
   stop(sprintf(
@@ -107,7 +119,11 @@ for (valor in valores_parametro) {
 tabla <- do.call(rbind, filas)
 
 dir.create("data/results", showWarnings = FALSE, recursive = TRUE)
-out_path <- sprintf("data/results/bloque2_%s.csv", familia_elegida)
+out_path <- if (es_grid_default) {
+  sprintf("data/results/bloque2_%s.csv", familia_elegida)
+} else {
+  sprintf("data/results/bloque2_%s_n%s.csv", familia_elegida, paste(n_grid, collapse = "-"))
+}
 readr::write_csv(tabla, out_path)
 cat(sprintf("\nGuardado %s\n", out_path))
 cat("Listo.\n")
