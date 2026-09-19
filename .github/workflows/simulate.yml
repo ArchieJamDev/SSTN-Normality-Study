@@ -112,11 +112,11 @@ jobs:
           path: notes/feasibility_pilot.txt
 
   # Version final: calcula asimetria/curtosis oficiales (N completo) de las 11
-  # subescalas reales, confirma factibilidad Fleishman/Polynomial (se espera
-  # FALSE para las 11, ver DESIGN.md seccion 14) y ajusta GLD (gld::fit.fkml,
-  # ML) sobre el N COMPLETO de cada subescala (no una submuestra, a diferencia
-  # del piloto) — produce data/processed/plasmode_calibration.csv, insumo
-  # directo de R/05_calibration_plasmode.R. Depende de extract-subscales.
+  # subescalas reales, confirma factibilidad Fleishman/Polynomial (FALSE para
+  # las 11, ver DESIGN.md secciones 14 y 16) y ajusta GLD (gld::fit.fkml,
+  # method="Mom" -- igualacion de momentos, ver seccion 16) sobre el N
+  # COMPLETO de cada subescala — produce data/processed/plasmode_calibration.csv,
+  # insumo directo de R/05_calibration_plasmode.R. Depende de extract-subscales.
   moments-and-feasibility:
     needs: extract-subscales
     runs-on: ubuntu-latest
@@ -188,8 +188,50 @@ jobs:
           name: plasmode-sanity-check-log
           path: notes/plasmode_sanity_check.txt
 
-  # TODO: job "simulate" con strategy.matrix (familia x n, o dataset x subescala).
+  # Piloto de tiempos del Bloque 1 (replica directa): corre la bateria
+  # completa de 10 pruebas (no solo SSTN, que ya se midio en pilot-timing)
+  # con R chico (200 replicas) sobre las 8 familias del paper original, para
+  # medir el costo real antes de comprometer R=10000 en el matrix completo.
+  # No depende de otros jobs (genera datos sinteticos, no usa datos reales).
+  classical-timing-pilot:
+    strategy:
+      matrix:
+        familia:
+          - normal_desplazada
+          - gamma
+          - chi2
+          - lognormal
+          - weibull
+          - t_student
+          - mezcla_normal
+          - convolucion_uniforme_normal
+      fail-fast: false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::sstn
+            any::nortest
+            any::moments
+            any::tseries
+            any::fBasics
+            any::gld
+            any::SimMultiCorrData
+      - name: Piloto de tiempos Bloque 1 (R=200)
+        run: Rscript R/01_simulation_classical.R ${{ matrix.familia }} 200
+      - uses: actions/upload-artifact@v4
+        with:
+          name: classical-pilot-${{ matrix.familia }}
+          path: data/results/bloque1_${{ matrix.familia }}.csv
+
+  # TODO: job "simulate-classical" con strategy.matrix (familia, o familia x n
+  #       si el piloto de tiempos lo exige), R=10000, para el Bloque 1 completo.
   #       Cada shard escribe su propio CSV de resultados como artifact.
+  #
+  # TODO: job "simulate" para los Bloques 2 y 3 (mismo patron de matrix).
   #
   # TODO: job final "aggregate" que descarga todos los artifacts del matrix y
   #       corre R/99_aggregate_results.R.

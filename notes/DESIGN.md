@@ -171,6 +171,40 @@ Esto es un hallazgo metodológico útil por derecho propio: confirma la importan
 
 Con esto, el Bloque 3 (calibración plasmode) queda completamente cerrado y validado: los 11 objetivos reales tienen su GLD ajustada, el generador `generar_plasmode()` está confirmado empíricamente, y `data/processed/plasmode_calibration.csv` es la tabla final de transparencia metodológica para el manuscrito.
 
+## 17. Especificación del Bloque 1 confirmada contra el paper original (19 sep 2026)
+
+Antes de escribir `R/01_simulation_classical.R` se confirmó la Tabla 1 (setup de simulación) del paper original directamente desde `arxiv.org/html/2604.03810` (versión HTML de arXiv, texto real, no de memoria) — verificado con dos fetches independientes que devolvieron el mismo contenido verbatim:
+
+| Familia | Parametrización | Valores del parámetro |
+|---|---|---|
+| Normal desplazada | N(a−3, 9/a²) | a ∈ {1,2,3,4,5,6} |
+| Gamma | Γ(θ,1) | θ ∈ {1,4,6,8,10,12} |
+| Chi-cuadrado | χ²ₘ | m ∈ {3,6,9,12,15,18} |
+| Lognormal | Lognormal(0, (7/6−d)²) | d ∈ {1/6,2/6,3/6,4/6,5/6,1} |
+| Weibull | Weibull(k,1) | k ∈ {0.5,1,1.5,2,2.5,3} |
+| t de Student | t_ν | ν ∈ {1,2,3,4,5,6} |
+| Mezcla de normales | 0.6·N(−1,1) + 0.4·N(4−b,2) | b ∈ {0,1,2,3,4,5} |
+| Convolución uniforme-normal | U(−3,3) * N(0,σ²) | σ ∈ {0,0.2,0.4,0.6,0.8,1} |
+
+n ∈ {10,25,50,100,250,500} (6 valores), R=1.000 réplicas en el original (aquí R=10.000, ver sección 4), α=.05. Total: 6 parámetros × 6 n = 36 celdas por familia, 288 celdas en total.
+
+Nota sobre la familia "normal desplazada": al ser realmente normal para cualquier a (solo cambian media y varianza, y las 10 pruebas de la batería son invariantes a locación-escala), esta familia mide en la práctica el **error Tipo I** de cada prueba bajo H0 verdadera, no potencia — los distintos valores de `a` sirven como chequeo de estabilidad numérica, no como variación real de la forma de la distribución.
+
+Implementado `R/01_simulation_classical.R`: recibe `<familia>` y `[R]` por línea de comandos (pensado para ser un shard del futuro job matrix `simulate-classical`, una familia por shard), genera las 36 celdas de esa familia, corre `run_battery()` (R/08_run_battery.R) sobre cada réplica, y guarda tasa de rechazo por prueba y celda en `data/results/bloque1_<familia>.csv` (con columna `segundos` por celda, para poder dimensionar el matrix real).
+
+**Antes de comprometer R=10.000 en las 8 familias**, se agrega el job `classical-timing-pilot` (matrix de 8 shards, uno por familia, R=200 cada uno, sin dependencias de otros jobs) para medir el tiempo real de la batería completa (no solo SSTN, que ya se midió en la sección 10) a través de las 8 familias y los 6 n — y así decidir la granularidad final del matrix (¿un shard por familia alcanza dentro de las 6h de GitHub Actions, o hace falta partir también por n?).
+
+## 18. Nota metodológica para la discusión del manuscrito: naturaleza ordinal de los puntajes sumados (19 sep 2026)
+
+Los 11 puntajes de subescala reales (DASS, RIASEC, MACH-IV, RSE) son sumas de ítems Likert (ordinales) — no mediciones continuas genuinas. Sumar (o promediar) ítems ordinales para constituir un puntaje único que representa el "nivel" de presencia de un constructo es una práctica extendida y aceptada en psicología y ciencias sociales, pero no es estrictamente coherente desde el punto de vista matemático: la estructura de varianza de una variable ordinal (con categorías discretas, típicamente equidistantes solo por supuesto, no por medición) no se traduce de forma simple a la varianza de un puntaje sumado/promediado — la relación entre la "forma" de las distribuciones de los ítems individuales y la forma de la distribución del puntaje compuesto no es trivial ni completamente comprendida en términos generales.
+
+Esto es relevante para este estudio en dos sentidos:
+
+1. **Interpretación de la asimetría/curtosis objetivo del Bloque 3**: los momentos que se calibran (sección 14) son los del puntaje sumado, no de una variable latente continua subyacente — es una limitación compartida con toda la práctica psicométrica que usa puntajes totales/promedio (y con el mismo paper original de SSTN, que tampoco aplica a datos reales). Vale la pena mencionarlo explícitamente en la discusión, no como defecto del diseño sino como encuadre honesto del alcance de la "aplicación a datos reales": se está evaluando normalidad de puntajes compuestos tal como se usan en la práctica, no de constructos latentes.
+2. **Consistencia interna del estudio**: las 11 subescalas fueron tratadas exactamente de la misma manera (suma directa de ítems, con reversión donde corresponde, exigiendo caso completo — ver sección 11) — no hay inconsistencia metodológica entre subescalas que pudiera confundir comparaciones entre ellas.
+
+Punto a desarrollar en la sección de discusión/limitaciones del manuscrito, citando la literatura relevante sobre el tratamiento de datos ordinales como intervalares en psicometría aplicada (debate clásico, sin resolución consensuada) al momento de redactar esa sección.
+
 ## 9. Pendientes abiertos
 
 - [x] `git init` + primer commit.
@@ -185,4 +219,5 @@ Con esto, el Bloque 3 (calibración plasmode) queda completamente cerrado y vali
 - [x] Escribir y correr la versión final `R/04_moments_and_feasibility.R` (ajusta GLD sobre N completo) y el job `moments-and-feasibility` — corrido con éxito (corrida 35375789088), 11/11 convergen, ~23 min de job, ver sección 14. `data/processed/plasmode_calibration.csv` generado con los parámetros GLD finales.
 - [x] Escribir `R/05_calibration_plasmode.R` — ver sección 15. API de `gld::rgl()` confirmada contra fuente real; `generar_plasmode()` implementado + sanity check (job `plasmode-sanity-check`) corrido — ver sección 16.
 - [x] **Corregido y re-corrido**: sanity check reveló que `fit.fkml(method="ML")` no reproducía bien los momentos objetivo (sección 16) — corregido a `method="Mom"`. Confirmado en corrida 35385335301: 11/11 con `"Mom"` (sin necesitar respaldo), diferencias objetivo-réplica ya en rango de ruido de muestreo, y el ajuste pasó de 7-221s a 5-12ms por subescala. **Bloque 3 (calibración plasmode) cerrado.**
+- [ ] **Bloque 1 (réplica directa)**: `R/01_simulation_classical.R` escrito — ver sección 17 (especificación de las 8 familias confirmada verbatim contra el paper real). Pendiente: correr el job `classical-timing-pilot` (R=200, 8 shards) para medir tiempo real de la batería completa antes de comprometer R=10.000 en el matrix final.
 - [ ] Con tiempos reales en mano, dimensionar el matrix del job `simulate` (cuántas celdas por shard) — aunque ya no es estrictamente necesario para caber en 6h, sigue siendo buena idea para paralelizar.
