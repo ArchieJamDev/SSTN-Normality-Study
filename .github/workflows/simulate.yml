@@ -235,7 +235,15 @@ jobs:
   # notes/DESIGN.md seccion 28 y el incidente del Bloque 2, seccion 27).
   simulate-plasmode:
     if: ${{ inputs.correr_bloque3 }}
-    needs: moments-and-feasibility
+    # No depende de moments-and-feasibility (gateado por correr_pilotos_y_reales,
+    # que por defecto es false) -- en vez de forzar esa corrida cara (~23 min) cada
+    # vez que se dispara el Bloque 3, se descarga el artifact plasmode-calibration
+    # directo de la corrida ya validada (35375789088, ver DESIGN.md secciones 14 y
+    # 28). Si ese artifact expira, correr una vez con correr_pilotos_y_reales=true
+    # y actualizar el run-id de abajo con el ID de la corrida nueva.
+    permissions:
+      actions: read
+      contents: read
     strategy:
       matrix:
         subescala:
@@ -269,8 +277,11 @@ jobs:
         with:
           # mismo motivo que en plasmode-sanity-check: el artifact trae
           # data/processed/ y notes/ sin ancestro comun, se descarga a la raiz.
+          # run-id fijo: ver comentario arriba del job.
           name: plasmode-calibration
           path: .
+          run-id: 35375789088
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Bloque 3 completo (R=10000)
         run: Rscript R/06_simulation_plasmode.R ${{ matrix.subescala }}.csv
       - uses: actions/upload-artifact@v4
