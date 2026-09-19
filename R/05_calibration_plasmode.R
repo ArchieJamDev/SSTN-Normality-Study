@@ -17,21 +17,17 @@
 #     usa gld::fit.fkml() (Freimer-Mudholkar-Kollia-Lin) -- no hace falta
 #     traducir entre parametrizaciones distintas.
 #
-# Uso previsto: cada celda del Bloque 3 del diseño de simulacion (subescala x
-# n) llamara a generar_plasmode(archivo, n) para obtener UNA replica
-# sintetica de tamano n, sobre la cual se corre la bateria de 10 pruebas
-# (R/08_run_battery.R) -- repetido R veces por celda dentro del futuro job
-# `simulate`.
+# Este archivo solo define funciones puras (cargar_calibracion_plasmode(),
+# generar_plasmode()), pensadas para reutilizarse via source() desde otros
+# scripts SIN efectos secundarios -- no escribe archivos ni corre nada al
+# hacer source(). Lo usan:
+#   - R/05b_pilot_plasmode_sanity.R -- sanity check de 1 replica x subescala.
+#   - R/06_simulation_plasmode.R -- simulacion completa del Bloque 3.
 #
-# Este script, corrido directamente (Rscript R/05_calibration_plasmode.R),
-# ademas hace un sanity check: genera una replica de n=5000 por cada una de
-# las 11 subescalas y compara su asimetria/curtosis empirica contra el
-# objetivo de data/processed/plasmode_calibration.csv, para confirmar que
-# los parametros GLD ajustados realmente reproducen la forma esperada antes
-# de usarlos en la simulacion completa.
-#
-# Corre en el job `plasmode-sanity-check` del workflow, que depende de
-# `moments-and-feasibility` (descarga su artifact plasmode-calibration).
+# (Hasta el 19 sep 2026 este archivo tambien corria el sanity check al
+# hacer source() -- se separo a R/05b_pilot_plasmode_sanity.R porque
+# R/06_simulation_plasmode.R necesita reusar generar_plasmode() miles de
+# veces sin repetir ese chequeo en cada llamada.)
 
 source("R/00_setup.R")
 
@@ -66,54 +62,3 @@ generar_plasmode <- function(archivo, n, calibracion = cargar_calibracion_plasmo
   lambdas <- as.numeric(fila[1, c("lambda1", "lambda2", "lambda3", "lambda4")])
   gld::rgl(n, lambda1 = lambdas, param = "fkml")
 }
-
-# --- Sanity check: la replica generada reproduce el objetivo? -------------
-#
-# Corre siempre que este script se ejecute (Rscript R/05_calibration_plasmode.R
-# directo, como en el job `plasmode-sanity-check`). Si mas adelante un script
-# de simulacion necesita reutilizar generar_plasmode() vía source() sin
-# volver a correr este chequeo, conviene separar las funciones a su propio
-# archivo en ese momento -- no se resuelve aqui por adelantado.
-
-dir.create("notes", showWarnings = FALSE)
-log_con <- file("notes/plasmode_sanity_check.txt", open = "wt")
-sink(log_con, split = TRUE)
-
-set.seed(20260918)
-n_check <- 5000
-
-calibracion <- cargar_calibracion_plasmode()
-cat(sprintf(
-  "Sanity check: generando 1 replica de n=%d por subescala y comparando\n",
-  n_check
-))
-cat("asimetria/curtosis empirica contra el objetivo real.\n\n")
-
-resultados <- data.frame(
-  archivo = calibracion$archivo,
-  asim_objetivo = calibracion$asimetria,
-  asim_replica = NA_real_,
-  curt_objetivo = calibracion$curtosis_exceso,
-  curt_replica = NA_real_
-)
-
-for (i in seq_len(nrow(calibracion))) {
-  x <- generar_plasmode(calibracion$archivo[i], n_check, calibracion)
-  resultados$asim_replica[i] <- moments::skewness(x)
-  resultados$curt_replica[i] <- moments::kurtosis(x) - 3
-  cat(sprintf(
-    "%-25s asim: objetivo=%7.4f replica=%7.4f (dif=%6.4f)  curt.exc: objetivo=%7.4f replica=%7.4f (dif=%6.4f)\n",
-    calibracion$archivo[i],
-    resultados$asim_objetivo[i], resultados$asim_replica[i],
-    resultados$asim_replica[i] - resultados$asim_objetivo[i],
-    resultados$curt_objetivo[i], resultados$curt_replica[i],
-    resultados$curt_replica[i] - resultados$curt_objetivo[i]
-  ))
-}
-
-cat("\n=== Resumen ===\n")
-print(resultados, digits = 4)
-
-cat("\nListo.\n")
-sink()
-close(log_con)

@@ -26,14 +26,19 @@ on:
         type: boolean
         default: false
       correr_bloque2:
-        description: "Bloque 2 (platykurtic-timing-pilot y/o simulate-platykurtic, segun lo que este activo)"
+        description: "Bloque 2 (platykurtic-timing-pilot y/o simulate-platykurtic) -- cerrado, ver DESIGN.md secciones 26/27"
         type: boolean
-        default: true
+        default: false
 
       correr_bloque2_explorar_n_alto:
         description: "Bloque 2 -- exploracion de n alto (n=1000,1500) via platykurtic-explore-n-alto, sin repetir el grid canonico de simulate-platykurtic"
         type: boolean
         default: false
+
+      correr_bloque3:
+        description: "Bloque 3 (simulate-plasmode, matrix de 11 subescalas, R=10000) -- bloque activo en desarrollo"
+        type: boolean
+        default: true
 
 jobs:
   # Piloto de tiempos (ya corrido con exito, ver notes/pilot_sstn_timing.txt
@@ -216,11 +221,62 @@ jobs:
           name: plasmode-calibration
           path: .
       - name: Sanity check del generador plasmode (gld::rgl)
-        run: Rscript R/05_calibration_plasmode.R
+        run: Rscript R/05b_pilot_plasmode_sanity.R
       - uses: actions/upload-artifact@v4
         with:
           name: plasmode-sanity-check-log
           path: notes/plasmode_sanity_check.txt
+
+  # Bloque 3 completo (simulacion plasmode), R=10000: version final, un shard por
+  # subescala real (matrix de 11), depende de moments-and-feasibility (descarga su
+  # artifact plasmode-calibration con los parametros GLD). Grid de n completo
+  # {10,25,50,100,250,500,1000,1500} desde el arranque -- R/06_simulation_plasmode.R
+  # soporta n_list desde su primera version, no como parche posterior (ver
+  # notes/DESIGN.md seccion 28 y el incidente del Bloque 2, seccion 27).
+  simulate-plasmode:
+    if: ${{ inputs.correr_bloque3 }}
+    needs: moments-and-feasibility
+    strategy:
+      matrix:
+        subescala:
+          - dass_anxiety
+          - dass_depression
+          - dass_stress
+          - mach_total
+          - riasec_artistic
+          - riasec_conventional
+          - riasec_enterprising
+          - riasec_investigative
+          - riasec_realistic
+          - riasec_social
+          - rse_total
+      fail-fast: false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::sstn
+            any::nortest
+            any::moments
+            any::tseries
+            any::fBasics
+            any::gld
+            any::SimMultiCorrData
+      - uses: actions/download-artifact@v4
+        with:
+          # mismo motivo que en plasmode-sanity-check: el artifact trae
+          # data/processed/ y notes/ sin ancestro comun, se descarga a la raiz.
+          name: plasmode-calibration
+          path: .
+      - name: Bloque 3 completo (R=10000)
+        run: Rscript R/06_simulation_plasmode.R ${{ matrix.subescala }}.csv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plasmode-final-${{ matrix.subescala }}
+          path: data/results/bloque3_${{ matrix.subescala }}.csv
 
   # Piloto de tiempos del Bloque 1 (replica directa): corre la bateria
   # completa de 10 pruebas (no solo SSTN, que ya se midio en pilot-timing)

@@ -279,9 +279,9 @@ Implementado `R/02_simulation_platykurtic.R` — mismo patrón que `01_simulatio
 - [x] Tiempos reales confirmados por familia (corrida 35430523246, ver sección 20): 18.8-32.5 min por familia a R=10.000 — sharding por familia alcanza sin partir además por n.
 - [x] Escribir y correr el job final `simulate-classical` (matrix de 8 familias, R=10.000) — corrida 35431776551, 8/8 shards exitosos. **Bloque 1 cerrado** — ver sección 22.
 - [x] Cerrar diseño del Bloque 2 (familia Beta(a,a), a∈{0.5,1,2,3,5,10}) — ver sección 23. `R/02_simulation_platykurtic.R` escrito, job `platykurtic-timing-pilot` agregado.
-- [ ] Correr `simulate-platykurtic` (Bloque 2, directo a R=10.000 — ver sección 25) y validar el patrón de NA del CSV resultante, igual que con el Bloque 1.
+- [x] Correr `simulate-platykurtic` (Bloque 2, directo a R=10.000 — ver sección 25) y validar el patrón de NA del CSV resultante, igual que con el Bloque 1 — corrida 35437615474 (grid 10-500), 36/36 celdas válidas.
 - [x] Cerrar el n_max de los Bloques 2/3 — **n_max=1500**, ver sección 26 (saturación de potencia + escalera del Bloque 4 + distribución real de tamaños muestrales en la literatura). Grid final: {10,25,50,100,250,500,1000,1500}.
-- [ ] Correr/confirmar los puntos exploratorios n=1000 y n=1500 del Bloque 2 (job `platykurtic-explore-n-alto`) y armar el CSV final concatenado con el grid canónico (10-500).
+- [x] Correr/confirmar los puntos exploratorios n=1000 y n=1500 del Bloque 2 (job `platykurtic-explore-n-alto`) y armar el CSV final concatenado con el grid canónico (10-500) — corrida 35440170904, 12/12 celdas válidas (ver sección 27). **Bloque 2 cerrado.**
 
 ## 24. Inputs de `workflow_dispatch` para no re-correr bloques ya cerrados (19 sep 2026)
 
@@ -301,7 +301,7 @@ El grid de n del Bloque 1 (10 a 500) es una restricción de réplica del paper o
 
 **Decisión final**: n_max=1500 para los Bloques 2 y 3. El grid queda así: n∈{10,25,50,100,250,500} (cobertura densa del rango que domina en la práctica publicada, y comparabilidad directa con el Bloque 1) + puntos de extensión en n=1000 y n=1500 (extremo alto, menos común pero plausible, y compatible con el rango real de las submuestras del Bloque 4). No hace falta esperar a cerrar el multiplicador exacto de la escalera del Bloque 4 para fijar este número — las tres justificaciones convergen en el mismo orden de magnitud sin depender de ese detalle.
 
-`R/02_simulation_platykurtic.R` acepta un tercer argumento opcional (`n_list`, ej. `Rscript R/02_simulation_platykurtic.R beta 10000 1000,1500`) para correr celdas de n puntuales sin repetir el grid por defecto (10-500) ya cubierto — el resultado sale a un archivo con sufijo `_nXXX` que se concatena directo con la corrida canónica (10-500), sin volver a correr nada. Pendiente: correr/confirmar los puntos n=1000 y n=1500 (job `platykurtic-explore-n-alto`) y armar el CSV final concatenado del Bloque 2 con el grid completo {10,25,50,100,250,500,1000,1500}.
+`R/02_simulation_platykurtic.R` acepta un tercer argumento opcional (`n_list`, ej. `Rscript R/02_simulation_platykurtic.R beta 10000 1000,1500`) para correr celdas de n puntuales sin repetir el grid por defecto (10-500) ya cubierto — el resultado sale a un archivo con sufijo `_nXXX` que se concatena directo con la corrida canónica (10-500), sin volver a correr nada. **Confirmado (corrida 35440170904, job `platykurtic-explore-n-alto`)**: n=1000 y n=1500 corridos con éxito, 12/12 celdas válidas (ver también sección 27 — el patrón de `curtosis_na` para a=0.5 llega a 100% en ambos). CSV final concatenado en `data/results/bloque2_beta.csv` con el grid completo {10,25,50,100,250,500,1000,1500}. **Bloque 2 cerrado.**
 
 ## 27. Límite de dominio de `moments::anscombe.test()` para curtosis extrema (19 sep 2026)
 
@@ -316,8 +316,29 @@ En la corrida canónica del Bloque 2 (`bloque2_beta.csv`, grid 10-500) aparece u
 | 250 | 7.243 (72.4%) |
 | 500 | 9.923 (99.2%) |
 
-Para a∈{1,2,3,5,10} (curtosis en exceso desde -1.2 hasta -0.26), `curtosis_na=0` en todo el grid — el problema es específico del caso más extremo.
+Para a∈{1,2,3,5,10} (curtosis en exceso desde -1.2 hasta -0.26), `curtosis_na=0` en todo el grid — el problema es específico del caso más extremo. **Confirmado con los puntos de extensión (corrida 35440170904)**: la tendencia continúa hasta el tope — `curtosis_na=10.000/10.000` (100%) en n=1000 y n=1500 para a=0.5, mientras que a∈{1,2,3,5,10} se mantienen en 0 en ambos puntos. El patrón queda completo:
+
+| n    | curtosis_na (a=0.5, de 10.000) |
+|------|---------------------------------|
+| 10   | 0 |
+| 25   | 0 |
+| 50   | 0 |
+| 100  | 288 (2.9%) |
+| 250  | 7.243 (72.4%) |
+| 500  | 9.923 (99.2%) |
+| 1000 | 10.000 (100%) |
+| 1500 | 10.000 (100%) |
 
 **Mecanismo (confirmado contra el código fuente real de `moments::anscombe.test()`, paquete `moments` en CRAN)**: el estadístico pasa por un término `z <- (1 - 2/(9*a) - ((1 - 2/a)/(1 + xx*sqrt(2/(a-4))))^(1/3)) / sqrt(2/(9*a))`, donde `xx` mide qué tan lejos está la curtosis muestral `b` de la esperada bajo normalidad. Para muestras fuertemente platicúrticas, `xx` es muy negativo, lo que puede volver negativa la base `(1 + xx*sqrt(2/(a-4)))` antes de elevarla a la potencia 1/3. En R, un número negativo elevado a una potencia fraccionaria vía el operador `^` da `NaN` (R no calcula raíces cúbicas reales de negativos por esa vía) — esto se propaga como NA en el p-valor final. Que empeore con n creciente (al revés de un límite de n mínimo típico) tiene sentido: a mayor n, la distribución muestral de `b` se concentra más estrechamente alrededor de la curtosis poblacional real, así que la condición de base negativa se cumple de forma sistemática en vez de ocasional.
 
 **Tratamiento**: se documenta como limitación de dominio propia de esta prueba clásica (no un error de nuestra implementación) — mismo criterio que la sección 20 para D'Agostino-Pearson. No se excluye la celda a=0.5 del diseño: el patrón de NA creciente con n es en sí mismo un resultado relevante para la comparación con SSTN en el régimen de curtosis extrema, que es justamente la extensión que motiva el Bloque 2 (sección 23).
+
+## 28. Bloque 3 — separación de `05_calibration_plasmode.R` y arquitectura de `06_simulation_plasmode.R` (19 sep 2026)
+
+Al preparar la simulación completa del Bloque 3 se encontraron dos problemas de diseño, ambos evitables aplicando las lecciones del incidente del Bloque 2 (sección 27 / el script sin `n_list` nunca pusheado):
+
+1. **Efecto secundario oculto en `source()`**: `R/05_calibration_plasmode.R` corría su sanity check (1 réplica de n=5000 × 11 subescalas, escritura de `notes/plasmode_sanity_check.txt`, `sink()`) automáticamente cada vez que se hacía `source()` del archivo, sin ningún `if` que lo condicionara. El propio script ya advertía este problema por adelantado ("si más adelante hace falta reutilizar `generar_plasmode()` sin correr este chequeo, hay que separar las funciones a su propio archivo"). Si `06_simulation_plasmode.R` le hubiera hecho `source()` tal cual, cada una de las miles de llamadas habría repetido el sanity check completo. **Se corrigió antes de escribir el script de simulación, no después**: `05_calibration_plasmode.R` quedó con solo las funciones puras (`cargar_calibracion_plasmode()`, `generar_plasmode()`, sin efectos secundarios), y el sanity check se movió a `05b_pilot_plasmode_sanity.R` (mismo patrón que `00b_pilot_sstn_timing.R` y `04b_pilot_feasibility.R`). El job `plasmode-sanity-check` del workflow se actualizó para apuntar al archivo nuevo.
+
+2. **Soporte de `n_list` desde el arranque, no como parche**: `06_simulation_plasmode.R` acepta el grid de n como tercer argumento opcional desde su primera versión (`Rscript R/06_simulation_plasmode.R <subescala> [R] [n_list]`), grid por defecto {10,25,50,100,250,500,1000,1500} — el grid completo ya cerrado en la sección 26, no el grid corto del Bloque 2 seguido de una extensión separada que casi se pierde por falta de esta misma flexibilidad desde el principio.
+
+**Arquitectura de ejecución**: a diferencia del Bloque 2 (una sola familia Beta(a,a), un solo job), el Bloque 3 tiene 11 subescalas reales independientes — mismo patrón que el Bloque 1 (`simulate-classical`, matrix de 8 familias) en vez del patrón del Bloque 2 (un job secuencial). `06_simulation_plasmode.R` toma la subescala como primer argumento de línea de comandos, y el job `simulate-plasmode` del workflow la shardea vía `strategy.matrix` (11 shards paralelos, cada uno con el grid completo de 8 tamaños de muestra a R=10.000) en vez de un solo job secuencial de más de 2 horas.
