@@ -284,6 +284,8 @@ Implementado `R/02_simulation_platykurtic.R` — mismo patrón que `01_simulatio
 - [x] Correr/confirmar los puntos exploratorios n=1000 y n=1500 del Bloque 2 (job `platykurtic-explore-n-alto`) y armar el CSV final concatenado con el grid canónico (10-500) — corrida 35440170904, 12/12 celdas válidas (ver sección 27). **Bloque 2 cerrado.**
 - [x] Separar `05_calibration_plasmode.R` (funciones puras) de `05b_pilot_plasmode_sanity.R` (sanity check) y escribir `06_simulation_plasmode.R` con soporte de `n_list` desde el arranque — ver sección 28.
 - [x] Correr el job `simulate-plasmode` (Bloque 3, matrix de 11 subescalas, R=10.000, grid completo {10,25,50,100,250,500,1000,1500}) y validar el patrón de NA del CSV resultante de cada subescala — corrida 35444808801, 11/11 shards exitosos, 88/88 celdas válidas (mismo patrón de NA que los Bloques 1/2: `dagostino_pearson` solo en n=10; sin reaparición del problema de `anscombe.test()` del Bloque 2, ver sección 27 — estas 11 distribuciones no llegan a curtosis tan extrema como a=0.5). **Bloque 3 cerrado.**
+- [x] Cerrar la escalera de n del Bloque 4 por instrumento y escribir `R/07_real_data_subsampling.R` — ver sección 29.
+- [ ] Correr el job `simulate-real-subsampling` (Bloque 4, matrix de 11 subescalas, R=10.000, grid por instrumento) y validar el patrón de NA del CSV resultante de cada subescala.
 
 ## 24. Inputs de `workflow_dispatch` para no re-correr bloques ya cerrados (19 sep 2026)
 
