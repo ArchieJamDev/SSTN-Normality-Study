@@ -30,6 +30,11 @@ on:
         type: boolean
         default: true
 
+      correr_bloque2_explorar_n_alto:
+        description: "Bloque 2 -- exploracion de n alto (n=1000,1500) via platykurtic-explore-n-alto, sin repetir el grid canonico de simulate-platykurtic"
+        type: boolean
+        default: false
+
 jobs:
   # Piloto de tiempos (ya corrido con exito, ver notes/pilot_sstn_timing.txt
   # commiteado en el repo) — se deja para poder re-correrlo si cambia algo
@@ -338,7 +343,7 @@ jobs:
   # estas celdas se concatenan directo con el resto, no hace falta
   # re-correrlas.
   platykurtic-explore-n-alto:
-    if: ${{ inputs.correr_bloque2 }}
+    if: ${{ inputs.correr_bloque2_explorar_n_alto }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
