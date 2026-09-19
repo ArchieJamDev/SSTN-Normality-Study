@@ -39,7 +39,17 @@ run_battery <- function(x) {
   p_jarque_bera    <- safe_p(tseries::jarque.bera.test(x)$p.value)
   p_dagostino_pearson <- safe_p({
     dt <- fBasics::dagoTest(x)
-    unname(dt@test$p.value["Omnibus"])
+    # OJO: fBasics::dagoTest() nombra el p-valor omnibus "Omnibus  Test" (con
+    # DOS espacios) -- confirmado contra el codigo fuente real del paquete
+    # (svn.r-project.org/Rmetrics/trunk/fBasics/R/NormalityTests.R y el
+    # espejo en rdrr.io), no "Omnibus". Indexar por el nombre incorrecto no
+    # tira error ni warning en R -- devuelve NA silenciosamente, por eso este
+    # bug paso desapercibido hasta que el piloto del Bloque 1 mostro
+    # dagostino_pearson_na=200 (el maximo posible) en TODAS las celdas de las
+    # 8 familias (ver notes/DESIGN.md seccion 19). Se usa grepl() en vez del
+    # string exacto para no depender de un conteo de espacios fragil.
+    pv <- dt@test$p.value
+    unname(pv[grepl("^Omnibus", names(pv))])
   })
   p_cramer_von_mises <- safe_p(nortest::cvm.test(x)$p.value)
   p_shapiro_francia <- safe_p(nortest::sf.test(x)$p.value)

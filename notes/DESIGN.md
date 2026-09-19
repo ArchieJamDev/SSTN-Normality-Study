@@ -205,6 +205,18 @@ Esto es relevante para este estudio en dos sentidos:
 
 Punto a desarrollar en la sección de discusión/limitaciones del manuscrito, citando la literatura relevante sobre el tratamiento de datos ordinales como intervalares en psicometría aplicada (debate clásico, sin resolución consensuada) al momento de redactar esa sección.
 
+## 19. Bug silencioso en D'Agostino-Pearson: `dagostino_pearson_na` = 200/200 en TODAS las celdas del piloto (19 sep 2026)
+
+Al revisar los CSV del piloto `classical-timing-pilot` (corrida 35429186129, 8 familias, R=200 cada una) se encontró que la columna `dagostino_pearson` daba `NA` en las 200 réplicas de las 36 celdas de las 8 familias, sin una sola excepción — es decir, la prueba D'Agostino-Pearson estuvo **completamente rota** en la batería desde que se escribió `R/08_run_battery.R`, y pasó desapercibida en el `battery-sanity-check` porque ese sanity check solo imprime el vector de resultados sin verificar que ningún valor sea `NA`.
+
+**Causa**: `R/08_run_battery.R` extraía el p-valor con `dt@test$p.value["Omnibus"]`, pero `fBasics::dagoTest()` nombra ese elemento `"Omnibus  Test"` (con DOS espacios) — confirmado contra el código fuente real del paquete en dos fuentes independientes (`svn.r-project.org/Rmetrics/trunk/fBasics/R/NormalityTests.R` y su espejo en `rdrr.io/rforge/fBasics/src/R/test-normalityTest.R`). En R, indexar un vector nombrado con una clave que no existe devuelve `NA` **sin lanzar error ni warning** — por eso el `tryCatch` de `safe_p()` nunca se disparó y el bug quedó invisible: no hay ningún mensaje de error en ningún log, el job siempre salió verde.
+
+**Corrección**: se cambió la extracción a `pv[grepl("^Omnibus", names(pv))]` — usa `grepl()` en vez del string exacto, para no depender de un conteo de espacios frágil que podría volver a fallar silenciosamente con otra variación de formato.
+
+**Lección metodológica para el manuscrito**: este es un ejemplo claro de por qué correr pilotos con datos reales y revisar los valores concretos (no solo si el job terminó sin error) es indispensable — un job puede terminar "exitosamente" en GitHub Actions mientras produce silenciosamente una de sus 10 pruebas como pura basura estadística. Vale la pena mencionarlo en la sección de métodos junto con el bug de `find_constants()` (sección 12) como parte del control de calidad del pipeline.
+
+Pendiente: re-correr `battery-sanity-check` y `classical-timing-pilot` con la corrección para confirmar que `dagostino_pearson` ya da valores válidos, antes de retomar el análisis de tiempos para dimensionar el matrix del Bloque 1.
+
 ## 9. Pendientes abiertos
 
 - [x] `git init` + primer commit.
@@ -219,5 +231,6 @@ Punto a desarrollar en la sección de discusión/limitaciones del manuscrito, ci
 - [x] Escribir y correr la versión final `R/04_moments_and_feasibility.R` (ajusta GLD sobre N completo) y el job `moments-and-feasibility` — corrido con éxito (corrida 35375789088), 11/11 convergen, ~23 min de job, ver sección 14. `data/processed/plasmode_calibration.csv` generado con los parámetros GLD finales.
 - [x] Escribir `R/05_calibration_plasmode.R` — ver sección 15. API de `gld::rgl()` confirmada contra fuente real; `generar_plasmode()` implementado + sanity check (job `plasmode-sanity-check`) corrido — ver sección 16.
 - [x] **Corregido y re-corrido**: sanity check reveló que `fit.fkml(method="ML")` no reproducía bien los momentos objetivo (sección 16) — corregido a `method="Mom"`. Confirmado en corrida 35385335301: 11/11 con `"Mom"` (sin necesitar respaldo), diferencias objetivo-réplica ya en rango de ruido de muestreo, y el ajuste pasó de 7-221s a 5-12ms por subescala. **Bloque 3 (calibración plasmode) cerrado.**
-- [ ] **Bloque 1 (réplica directa)**: `R/01_simulation_classical.R` escrito — ver sección 17 (especificación de las 8 familias confirmada verbatim contra el paper real). Pendiente: correr el job `classical-timing-pilot` (R=200, 8 shards) para medir tiempo real de la batería completa antes de comprometer R=10.000 en el matrix final.
+- [x] **Bloque 1 (réplica directa)**: `R/01_simulation_classical.R` escrito — ver sección 17. Job `classical-timing-pilot` corrido (corrida 35429186129) — reveló el bug de la sección 19 (D'Agostino-Pearson roto en TODA la batería). Corregido `R/08_run_battery.R`.
+- [ ] Re-correr `battery-sanity-check` y `classical-timing-pilot` con la corrección del bug de la sección 19, confirmar `dagostino_pearson` válido, y retomar el análisis de tiempos para dimensionar el matrix del Bloque 1 con R=10.000.
 - [ ] Con tiempos reales en mano, dimensionar el matrix del job `simulate` (cuántas celdas por shard) — aunque ya no es estrictamente necesario para caber en 6h, sigue siendo buena idea para paralelizar.
