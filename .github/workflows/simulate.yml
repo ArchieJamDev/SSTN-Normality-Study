@@ -1,17 +1,41 @@
 # Esqueleto del workflow de simulacion (ver notes/DESIGN.md secciones 4, 7, 10 y 11).
 # El job calibrate-null se elimino — resulto innecesario (ver DESIGN.md
 # seccion 10): sstn::sstn() calibra internamente en cada llamada, rapido.
+#
+# IMPORTANTE: workflow_dispatch antes corria TODOS los jobs en cada disparo,
+# incluyendo los ya cerrados/validados (pilotos, extraccion de datos reales,
+# Bloque 1 completo con R=10000) -- desperdiciaba tiempo y minutos de Actions
+# cada vez que se agregaba un job nuevo para otro bloque. Ahora cada grupo de
+# jobs se activa con un input booleano independiente, todos en false por
+# defecto salvo el bloque que este activo en desarrollo -- ver la lista de
+# inputs abajo. Para re-correr algo ya cerrado (ej. reproducir el Bloque 1),
+# pasar el input correspondiente en true explicitamente:
+#   gh workflow run simulate.yml -f correr_bloque1=true
 
 name: Simulacion SSTN
 
 on:
-  workflow_dispatch: {}  # disparo manual mientras se dimensiona el diseño
+  workflow_dispatch:
+    inputs:
+      correr_pilotos_y_reales:
+        description: "Pilotos + pipeline de datos reales (pilot-timing, battery-sanity-check, extract-subscales, feasibility-pilot, moments-and-feasibility, plasmode-sanity-check) -- ya validado, normalmente no hace falta"
+        type: boolean
+        default: false
+      correr_bloque1:
+        description: "Bloque 1 completo (classical-timing-pilot + simulate-classical, R=10000) -- ya cerrado, ver DESIGN.md seccion 22"
+        type: boolean
+        default: false
+      correr_bloque2:
+        description: "Bloque 2 (platykurtic-timing-pilot y/o simulate-platykurtic, segun lo que este activo)"
+        type: boolean
+        default: true
 
 jobs:
   # Piloto de tiempos (ya corrido con exito, ver notes/pilot_sstn_timing.txt
   # commiteado en el repo) — se deja para poder re-correrlo si cambia algo
   # (version de paquetes, runner, etc.)
   pilot-timing:
+    if: ${{ inputs.correr_pilotos_y_reales }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -37,6 +61,7 @@ jobs:
   # antes de correr la simulacion en serio — confirma que las 9 pruebas
   # clasicas + SSTN funcionan todas juntas sin errores de dependencias.
   battery-sanity-check:
+    if: ${{ inputs.correr_pilotos_y_reales }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -58,6 +83,7 @@ jobs:
   # los .zip crudos en data/raw/ y sube los CSV resultantes como artifact —
   # son la entrada de 04_moments_and_feasibility.R y de 07_real_data_subsampling.R.
   extract-subscales:
+    if: ${{ inputs.correr_pilotos_y_reales }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -85,6 +111,7 @@ jobs:
   # final de 04_moments_and_feasibility.R. Depende de extract-subscales
   # (descarga su artifact a data/processed/).
   feasibility-pilot:
+    if: ${{ inputs.correr_pilotos_y_reales }}
     needs: extract-subscales
     runs-on: ubuntu-latest
     steps:
@@ -118,6 +145,7 @@ jobs:
   # COMPLETO de cada subescala — produce data/processed/plasmode_calibration.csv,
   # insumo directo de R/05_calibration_plasmode.R. Depende de extract-subscales.
   moments-and-feasibility:
+    if: ${{ inputs.correr_pilotos_y_reales }}
     needs: extract-subscales
     runs-on: ubuntu-latest
     steps:
@@ -153,6 +181,7 @@ jobs:
   # Depende de moments-and-feasibility (descarga su artifact
   # plasmode-calibration).
   plasmode-sanity-check:
+    if: ${{ inputs.correr_pilotos_y_reales }}
     needs: moments-and-feasibility
     runs-on: ubuntu-latest
     steps:
@@ -195,6 +224,7 @@ jobs:
   # No depende de otros jobs (genera datos sinteticos, no usa datos reales).
   # Se deja como referencia/regresion — mismo patron que pilot-timing.
   classical-timing-pilot:
+    if: ${{ inputs.correr_bloque1 }}
     strategy:
       matrix:
         familia:
@@ -233,8 +263,10 @@ jobs:
   # medidos con datos limpios (corrida 35430523246, ver DESIGN.md seccion 21):
   # entre 18.8 min (mezcla_normal) y 32.5 min (gamma) de computo puro por
   # familia a R=10000 -- muy por debajo del limite de 6h por job, no hace
-  # falta partir ademas por n.
+  # falta partir ademas por n. CERRADO (corrida 35431776551, ver seccion 22)
+  # -- solo se re-corre si correr_bloque1=true explicitamente.
   simulate-classical:
+    if: ${{ inputs.correr_bloque1 }}
     strategy:
       matrix:
         familia:
@@ -268,7 +300,41 @@ jobs:
           name: classical-final-${{ matrix.familia }}
           path: data/results/bloque1_${{ matrix.familia }}.csv
 
-  # TODO: job "simulate" para los Bloques 2 y 3 (mismo patron de matrix).
+  # Piloto de tiempos del Bloque 2 (extension platicurtica, familia Beta(a,a)
+  # -- ver DESIGN.md secciones 3 y 23). Una sola familia (no matrix como el
+  # Bloque 1) -- R=200 sobre las 36 celdas (6 valores de a x 6 n), para medir
+  # el costo real antes de comprometer R=10000 y confirmar que no hay
+  # problemas numericos con a=0.5 (forma de "bañera"/arcoseno, la mas alejada
+  # de lo que vieron las pruebas en el Bloque 1).
+  platykurtic-timing-pilot:
+    if: ${{ inputs.correr_bloque2 }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::sstn
+            any::nortest
+            any::moments
+            any::tseries
+            any::fBasics
+            any::gld
+            any::SimMultiCorrData
+      - name: Piloto de tiempos Bloque 2 (R=200)
+        run: Rscript R/02_simulation_platykurtic.R beta 200
+      - uses: actions/upload-artifact@v4
+        with:
+          name: platykurtic-pilot-beta
+          path: data/results/bloque2_beta.csv
+
+  # TODO: job "simulate-platykurtic" (Bloque 2, R=10000) una vez confirmado el
+  #       piloto de arriba -- ver DESIGN.md seccion 23. Activar con
+  #       correr_bloque2 (o agregar su propio input si conviene separarlo del
+  #       piloto).
+  #
+  # TODO: job "simulate" para el Bloque 3 (calibracion plasmode, mismo patron).
   #
   # TODO: job final "aggregate" que descarga todos los artifacts del matrix y
   #       corre R/99_aggregate_results.R.

@@ -232,6 +232,35 @@ Con los datos limpios del job `classical-timing-pilot` (corrida 35430523246, R=2
 
 Todas las familias caen entre 19 y 33 minutos de cómputo puro por familia a R=10.000 — muy por debajo del límite de 6h por job de GitHub Actions (ubuntu-latest). **Decisión de planificación**: el job final `simulate-classical` usa un matrix de 8 shards (uno por familia, igual que el piloto `classical-timing-pilot`), cada uno corriendo `Rscript R/01_simulation_classical.R <familia> 10000` — no hace falta partir además por n, ya que ni la familia más lenta (gamma, ~32.5 min) se acerca al límite. El tiempo de pared total del workflow queda determinado por el resto de la cadena de dependencias (`extract-subscales` → `moments-and-feasibility` → `plasmode-sanity-check`, que corren en serie por depender unas de otras — ver sección 7), no por este matrix, que corre en paralelo con esa cadena.
 
+## 22. Bloque 1 cerrado — corrida final R=10.000 (19 sep 2026)
+
+Corrida 35431776551, job `simulate-classical`, 8/8 shards exitosos, 288 celdas totales (36 por familia). Tiempos reales de pared por shard: entre 22m51s (gamma) y 39m40s (lognormal) — algo por encima del estimado de la sección 21, pero muy lejos del límite de 6h.
+
+Patrón de NA validado programáticamente sobre las 288 filas: `dagostino_pearson` es NA en exactamente las 48 celdas con n=10 (ver sección 20), como se esperaba. **Único hallazgo adicional**: la celda `mezcla_normal` (b=0, n=250) tiene un NA aislado en `curtosis` (`moments::anscombe.test()`) — 1 de 10.000 réplicas. No se repite en ninguna otra de las 288 celdas. Es ruido numérico esperable de una prueba iterativa sobre ~2,88 millones de evaluaciones totales de la batería (no hay un `stop()` de tamaño mínimo documentado para `anscombe.test()` como sí lo hay para `dagoTest()` — parece ser un caso puntual donde una réplica generada produjo un valor de curtosis muestral en el borde de la transformación interna de la prueba). No afecta la tasa de rechazo reportada (`colMeans(..., na.rm=TRUE)` ya lo maneja) y no requiere ninguna corrección de código.
+
+**Bloque 1 (réplica directa) queda cerrado**: `data/results/bloque1_<familia>.csv` (8 archivos, artifacts `classical-final-<familia>` de la corrida 35431776551) son los datos finales para el manuscrito.
+
+## 23. Diseño cerrado del Bloque 2 — extensión platicúrtica (19 sep 2026)
+
+La sección 3 dejaba abierto si usar "uniforme pura, Beta(a,a) simétrica, y/o GLD". Decisión final:
+
+**Familia única: Beta(a,a) simétrica**, a∈{0.5,1,2,3,5,10} (6 valores, mismo tamaño de grid que el Bloque 1). Asimetría=0 para cualquier a; curtosis en exceso = −6/(2a+3), barrido continuo:
+
+| a | curtosis exceso |
+|---|---|
+| 0.5 | ≈ −1.5 (arcoseno, forma de U) |
+| 1 | ≈ −1.2 (uniforme pura — Beta(1,1)=Uniforme(0,1), por eso no se lista aparte) |
+| 2 | ≈ −0.857 |
+| 3 | ≈ −0.667 |
+| 5 | ≈ −0.462 |
+| 10 | ≈ −0.261 (cerca de la normal) |
+
+**No se usa GLD en este bloque** — queda reservado para el Bloque 3 (calibración a datos reales), un solo motor generador por bloque propio, sin mezclar mecanismos sin necesidad.
+
+n∈{10,25,50,100,250,500}, R=10.000 — mismo grid que el Bloque 1, para comparabilidad directa entre bloques.
+
+Implementado `R/02_simulation_platykurtic.R` — mismo patrón que `01_simulation_classical.R` (`<familia> [R]` por línea de comandos, `run_battery()`, `data/results/bloque2_<familia>.csv`). Una sola familia (no 8 como el Bloque 1), así que no hace falta matrix. Antes de comprometer R=10.000, job `platykurtic-timing-pilot` (R=200) para medir tiempo real y confirmar que a=0.5 (la forma más alejada de lo visto en el Bloque 1) no genera problemas numéricos en ninguna de las 10 pruebas.
+
 ## 9. Pendientes abiertos
 
 - [x] `git init` + primer commit.
@@ -248,4 +277,10 @@ Todas las familias caen entre 19 y 33 minutos de cómputo puro por familia a R=1
 - [x] **Corregido y re-corrido**: sanity check reveló que `fit.fkml(method="ML")` no reproducía bien los momentos objetivo (sección 16) — corregido a `method="Mom"`. Confirmado en corrida 35385335301: 11/11 con `"Mom"` (sin necesitar respaldo), diferencias objetivo-réplica ya en rango de ruido de muestreo, y el ajuste pasó de 7-221s a 5-12ms por subescala. **Bloque 3 (calibración plasmode) cerrado.**
 - [x] **Bloque 1 (réplica directa)**: `R/01_simulation_classical.R` escrito — ver sección 17. Job `classical-timing-pilot` corrido con `R/08_run_battery.R` corregido (sección 19) — `dagostino_pearson` válido para n≥25 en las 8 familias; NA en n=10 por límite propio de la prueba (sección 20), no por error.
 - [x] Tiempos reales confirmados por familia (corrida 35430523246, ver sección 20): 18.8-32.5 min por familia a R=10.000 — sharding por familia alcanza sin partir además por n.
-- [ ] Escribir el job final `simulate-classical` (matrix de 8 familias, R=10.000) en `.github/workflows/simulate.yml`, reemplazando/extendiendo `classical-timing-pilot`.
+- [x] Escribir y correr el job final `simulate-classical` (matrix de 8 familias, R=10.000) — corrida 35431776551, 8/8 shards exitosos. **Bloque 1 cerrado** — ver sección 22.
+- [x] Cerrar diseño del Bloque 2 (familia Beta(a,a), a∈{0.5,1,2,3,5,10}) — ver sección 23. `R/02_simulation_platykurtic.R` escrito, job `platykurtic-timing-pilot` agregado.
+- [ ] Correr `platykurtic-timing-pilot`, confirmar tiempos y ausencia de problemas numéricos con a=0.5, luego escribir el job final `simulate-platykurtic` (R=10.000).
+
+## 24. Inputs de `workflow_dispatch` para no re-correr bloques ya cerrados (19 sep 2026)
+
+`workflow_dispatch` sin inputs corre TODOS los jobs del archivo en cada disparo, incluidos los ya validados/cerrados (pilotos, extracción de datos reales, Bloque 1 completo con R=10.000) — desperdicio de tiempo y minutos de Actions cada vez que se agrega un job nuevo para otro bloque. Se agregaron tres inputs booleanos (`correr_pilotos_y_reales`, `correr_bloque1`, `correr_bloque2`), cada uno controlando el `if:` de su grupo de jobs, todos en `false` por defecto salvo el bloque activo en desarrollo. Para re-correr algo ya cerrado hay que pasarlo explícito: `gh workflow run simulate.yml -f correr_bloque1=true`.
