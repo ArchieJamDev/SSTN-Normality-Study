@@ -302,3 +302,22 @@ El grid de n del Bloque 1 (10 a 500) es una restricción de réplica del paper o
 **Decisión final**: n_max=1500 para los Bloques 2 y 3. El grid queda así: n∈{10,25,50,100,250,500} (cobertura densa del rango que domina en la práctica publicada, y comparabilidad directa con el Bloque 1) + puntos de extensión en n=1000 y n=1500 (extremo alto, menos común pero plausible, y compatible con el rango real de las submuestras del Bloque 4). No hace falta esperar a cerrar el multiplicador exacto de la escalera del Bloque 4 para fijar este número — las tres justificaciones convergen en el mismo orden de magnitud sin depender de ese detalle.
 
 `R/02_simulation_platykurtic.R` acepta un tercer argumento opcional (`n_list`, ej. `Rscript R/02_simulation_platykurtic.R beta 10000 1000,1500`) para correr celdas de n puntuales sin repetir el grid por defecto (10-500) ya cubierto — el resultado sale a un archivo con sufijo `_nXXX` que se concatena directo con la corrida canónica (10-500), sin volver a correr nada. Pendiente: correr/confirmar los puntos n=1000 y n=1500 (job `platykurtic-explore-n-alto`) y armar el CSV final concatenado del Bloque 2 con el grid completo {10,25,50,100,250,500,1000,1500}.
+
+## 27. Límite de dominio de `moments::anscombe.test()` para curtosis extrema (19 sep 2026)
+
+En la corrida canónica del Bloque 2 (`bloque2_beta.csv`, grid 10-500) aparece un patrón de NA en la columna `curtosis_na` (prueba de curtosis de Anscombe-Glynn, `moments::anscombe.test()`) que **no** es el típico límite de n mínimo (como el de D'Agostino-Pearson en n=10, sección 20) sino un problema de dominio que **empeora con n creciente**, y solo para el parámetro más platicúrtico del diseño (a=0.5, forma de bañera/arcoseno, curtosis en exceso ≈ -1.5):
+
+| n   | curtosis_na (a=0.5, de 10.000) |
+|-----|---------------------------------|
+| 10  | 0 |
+| 25  | 0 |
+| 50  | 0 |
+| 100 | 288 (2.9%) |
+| 250 | 7.243 (72.4%) |
+| 500 | 9.923 (99.2%) |
+
+Para a∈{1,2,3,5,10} (curtosis en exceso desde -1.2 hasta -0.26), `curtosis_na=0` en todo el grid — el problema es específico del caso más extremo.
+
+**Mecanismo (confirmado contra el código fuente real de `moments::anscombe.test()`, paquete `moments` en CRAN)**: el estadístico pasa por un término `z <- (1 - 2/(9*a) - ((1 - 2/a)/(1 + xx*sqrt(2/(a-4))))^(1/3)) / sqrt(2/(9*a))`, donde `xx` mide qué tan lejos está la curtosis muestral `b` de la esperada bajo normalidad. Para muestras fuertemente platicúrticas, `xx` es muy negativo, lo que puede volver negativa la base `(1 + xx*sqrt(2/(a-4)))` antes de elevarla a la potencia 1/3. En R, un número negativo elevado a una potencia fraccionaria vía el operador `^` da `NaN` (R no calcula raíces cúbicas reales de negativos por esa vía) — esto se propaga como NA en el p-valor final. Que empeore con n creciente (al revés de un límite de n mínimo típico) tiene sentido: a mayor n, la distribución muestral de `b` se concentra más estrechamente alrededor de la curtosis poblacional real, así que la condición de base negativa se cumple de forma sistemática en vez de ocasional.
+
+**Tratamiento**: se documenta como limitación de dominio propia de esta prueba clásica (no un error de nuestra implementación) — mismo criterio que la sección 20 para D'Agostino-Pearson. No se excluye la celda a=0.5 del diseño: el patrón de NA creciente con n es en sí mismo un resultado relevante para la comparación con SSTN en el régimen de curtosis extrema, que es justamente la extensión que motiva el Bloque 2 (sección 23).
