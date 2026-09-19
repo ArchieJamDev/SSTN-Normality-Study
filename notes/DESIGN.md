@@ -205,17 +205,32 @@ Esto es relevante para este estudio en dos sentidos:
 
 Punto a desarrollar en la sección de discusión/limitaciones del manuscrito, citando la literatura relevante sobre el tratamiento de datos ordinales como intervalares en psicometría aplicada (debate clásico, sin resolución consensuada) al momento de redactar esa sección.
 
-## 19. Bug silencioso en D'Agostino-Pearson: `dagostino_pearson_na` = 200/200 en TODAS las celdas del piloto (19 sep 2026)
+## 19. Corrección de un bug silencioso en D'Agostino-Pearson (19 sep 2026)
 
-Al revisar los CSV del piloto `classical-timing-pilot` (corrida 35429186129, 8 familias, R=200 cada una) se encontró que la columna `dagostino_pearson` daba `NA` en las 200 réplicas de las 36 celdas de las 8 familias, sin una sola excepción — es decir, la prueba D'Agostino-Pearson estuvo **completamente rota** en la batería desde que se escribió `R/08_run_battery.R`, y pasó desapercibida en el `battery-sanity-check` porque ese sanity check solo imprime el vector de resultados sin verificar que ningún valor sea `NA`.
+`R/08_run_battery.R` extraía el p-valor omnibus con `dt@test$p.value["Omnibus"]`, pero `fBasics::dagoTest()` nombra ese elemento `"Omnibus  Test"` (con DOS espacios) — confirmado contra el código fuente real del paquete. Indexar por un nombre que no existe devuelve `NA` sin error ni warning en R, así que esto no aparecía en ningún log. Corregido a `pv[grepl("^Omnibus", names(pv))]`, más robusto que depender de un conteo exacto de espacios.
 
-**Causa**: `R/08_run_battery.R` extraía el p-valor con `dt@test$p.value["Omnibus"]`, pero `fBasics::dagoTest()` nombra ese elemento `"Omnibus  Test"` (con DOS espacios) — confirmado contra el código fuente real del paquete en dos fuentes independientes (`svn.r-project.org/Rmetrics/trunk/fBasics/R/NormalityTests.R` y su espejo en `rdrr.io/rforge/fBasics/src/R/test-normalityTest.R`). En R, indexar un vector nombrado con una clave que no existe devuelve `NA` **sin lanzar error ni warning** — por eso el `tryCatch` de `safe_p()` nunca se disparó y el bug quedó invisible: no hay ningún mensaje de error en ningún log, el job siempre salió verde.
+Los ensayos usados de acá en adelante para dimensionar el Bloque 1 (tiempos, matrix, etc.) son todos posteriores a esta corrección — ver sección siguiente.
 
-**Corrección**: se cambió la extracción a `pv[grepl("^Omnibus", names(pv))]` — usa `grepl()` en vez del string exacto, para no depender de un conteo de espacios frágil que podría volver a fallar silenciosamente con otra variación de formato.
+## 20. Limitaciones de rango válido de n por prueba (documentado para justificar NA)
 
-**Lección metodológica para el manuscrito**: este es un ejemplo claro de por qué correr pilotos con datos reales y revisar los valores concretos (no solo si el job terminó sin error) es indispensable — un job puede terminar "exitosamente" en GitHub Actions mientras produce silenciosamente una de sus 10 pruebas como pura basura estadística. Vale la pena mencionarlo en la sección de métodos junto con el bug de `find_constants()` (sección 12) como parte del control de calidad del pipeline.
+De las 10 pruebas de la batería, la única con restricción explícita de tamaño de muestra que se manifiesta en el grid del Bloque 1 (n∈{10,25,50,100,250,500}) es D'Agostino-Pearson: `fBasics::dagoTest()` exige internamente n≥20 (`.omnibus.test()`: `if (n < 20) stop("sample size must be at least 20")` — confirmado contra el código fuente real del paquete). Por eso `dagostino_pearson` es NA en las 48 celdas con n=10 (8 familias × 6 parámetros); las otras 9 pruebas producen resultado en esa celda — confirmado empíricamente en la corrida limpia (35430523246), donde ninguna otra columna de la batería mostró NA en ningún valor de n. Se maneja vía `safe_p()` en `run_battery()`, igual que cualquier otra prueba fuera de su rango válido.
 
-Pendiente: re-correr `battery-sanity-check` y `classical-timing-pilot` con la corrección para confirmar que `dagostino_pearson` ya da valores válidos, antes de retomar el análisis de tiempos para dimensionar el matrix del Bloque 1.
+## 21. Estimación de tiempos y planificación del Bloque 1 completo (19 sep 2026)
+
+Con los datos limpios del job `classical-timing-pilot` (corrida 35430523246, R=200, 288 celdas = 8 familias × 36 celdas), se calculó el tiempo real de cómputo por familia a partir de la columna `segundos` de cada CSV, y se extrapoló linealmente a R=10.000 (tiempo ∝ R, confirmado por la columna `segundos` de cada celda individual, que ya escala con n dentro de cada familia sin comportamiento anómalo):
+
+| familia | ms/réplica | min estimados a R=10.000 |
+|---|---|---|
+| mezcla_normal | 3.14 | 18.8 |
+| chi2 | 3.71 | 22.3 |
+| weibull | 5.10 | 30.6 |
+| t_student | 5.33 | 32.0 |
+| normal_desplazada | 5.34 | 32.1 |
+| lognormal | 5.36 | 32.2 |
+| convolucion_uniforme_normal | 5.27 | 31.6 |
+| gamma | 5.42 | 32.5 |
+
+Todas las familias caen entre 19 y 33 minutos de cómputo puro por familia a R=10.000 — muy por debajo del límite de 6h por job de GitHub Actions (ubuntu-latest). **Decisión de planificación**: el job final `simulate-classical` usa un matrix de 8 shards (uno por familia, igual que el piloto `classical-timing-pilot`), cada uno corriendo `Rscript R/01_simulation_classical.R <familia> 10000` — no hace falta partir además por n, ya que ni la familia más lenta (gamma, ~32.5 min) se acerca al límite. El tiempo de pared total del workflow queda determinado por el resto de la cadena de dependencias (`extract-subscales` → `moments-and-feasibility` → `plasmode-sanity-check`, que corren en serie por depender unas de otras — ver sección 7), no por este matrix, que corre en paralelo con esa cadena.
 
 ## 9. Pendientes abiertos
 
@@ -231,6 +246,6 @@ Pendiente: re-correr `battery-sanity-check` y `classical-timing-pilot` con la co
 - [x] Escribir y correr la versión final `R/04_moments_and_feasibility.R` (ajusta GLD sobre N completo) y el job `moments-and-feasibility` — corrido con éxito (corrida 35375789088), 11/11 convergen, ~23 min de job, ver sección 14. `data/processed/plasmode_calibration.csv` generado con los parámetros GLD finales.
 - [x] Escribir `R/05_calibration_plasmode.R` — ver sección 15. API de `gld::rgl()` confirmada contra fuente real; `generar_plasmode()` implementado + sanity check (job `plasmode-sanity-check`) corrido — ver sección 16.
 - [x] **Corregido y re-corrido**: sanity check reveló que `fit.fkml(method="ML")` no reproducía bien los momentos objetivo (sección 16) — corregido a `method="Mom"`. Confirmado en corrida 35385335301: 11/11 con `"Mom"` (sin necesitar respaldo), diferencias objetivo-réplica ya en rango de ruido de muestreo, y el ajuste pasó de 7-221s a 5-12ms por subescala. **Bloque 3 (calibración plasmode) cerrado.**
-- [x] **Bloque 1 (réplica directa)**: `R/01_simulation_classical.R` escrito — ver sección 17. Job `classical-timing-pilot` corrido (corrida 35429186129) — reveló el bug de la sección 19 (D'Agostino-Pearson roto en TODA la batería). Corregido `R/08_run_battery.R`.
-- [ ] Re-correr `battery-sanity-check` y `classical-timing-pilot` con la corrección del bug de la sección 19, confirmar `dagostino_pearson` válido, y retomar el análisis de tiempos para dimensionar el matrix del Bloque 1 con R=10.000.
-- [ ] Con tiempos reales en mano, dimensionar el matrix del job `simulate` (cuántas celdas por shard) — aunque ya no es estrictamente necesario para caber en 6h, sigue siendo buena idea para paralelizar.
+- [x] **Bloque 1 (réplica directa)**: `R/01_simulation_classical.R` escrito — ver sección 17. Job `classical-timing-pilot` corrido con `R/08_run_battery.R` corregido (sección 19) — `dagostino_pearson` válido para n≥25 en las 8 familias; NA en n=10 por límite propio de la prueba (sección 20), no por error.
+- [x] Tiempos reales confirmados por familia (corrida 35430523246, ver sección 20): 18.8-32.5 min por familia a R=10.000 — sharding por familia alcanza sin partir además por n.
+- [ ] Escribir el job final `simulate-classical` (matrix de 8 familias, R=10.000) en `.github/workflows/simulate.yml`, reemplazando/extendiendo `classical-timing-pilot`.
