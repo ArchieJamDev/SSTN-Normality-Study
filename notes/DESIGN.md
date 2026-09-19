@@ -282,6 +282,8 @@ Implementado `R/02_simulation_platykurtic.R` — mismo patrón que `01_simulatio
 - [x] Correr `simulate-platykurtic` (Bloque 2, directo a R=10.000 — ver sección 25) y validar el patrón de NA del CSV resultante, igual que con el Bloque 1 — corrida 35437615474 (grid 10-500), 36/36 celdas válidas.
 - [x] Cerrar el n_max de los Bloques 2/3 — **n_max=1500**, ver sección 26 (saturación de potencia + escalera del Bloque 4 + distribución real de tamaños muestrales en la literatura). Grid final: {10,25,50,100,250,500,1000,1500}.
 - [x] Correr/confirmar los puntos exploratorios n=1000 y n=1500 del Bloque 2 (job `platykurtic-explore-n-alto`) y armar el CSV final concatenado con el grid canónico (10-500) — corrida 35440170904, 12/12 celdas válidas (ver sección 27). **Bloque 2 cerrado.**
+- [x] Separar `05_calibration_plasmode.R` (funciones puras) de `05b_pilot_plasmode_sanity.R` (sanity check) y escribir `06_simulation_plasmode.R` con soporte de `n_list` desde el arranque — ver sección 28.
+- [x] Correr el job `simulate-plasmode` (Bloque 3, matrix de 11 subescalas, R=10.000, grid completo {10,25,50,100,250,500,1000,1500}) y validar el patrón de NA del CSV resultante de cada subescala — corrida 35444808801, 11/11 shards exitosos, 88/88 celdas válidas (mismo patrón de NA que los Bloques 1/2: `dagostino_pearson` solo en n=10; sin reaparición del problema de `anscombe.test()` del Bloque 2, ver sección 27 — estas 11 distribuciones no llegan a curtosis tan extrema como a=0.5). **Bloque 3 cerrado.**
 
 ## 24. Inputs de `workflow_dispatch` para no re-correr bloques ya cerrados (19 sep 2026)
 
@@ -342,3 +344,20 @@ Al preparar la simulación completa del Bloque 3 se encontraron dos problemas de
 2. **Soporte de `n_list` desde el arranque, no como parche**: `06_simulation_plasmode.R` acepta el grid de n como tercer argumento opcional desde su primera versión (`Rscript R/06_simulation_plasmode.R <subescala> [R] [n_list]`), grid por defecto {10,25,50,100,250,500,1000,1500} — el grid completo ya cerrado en la sección 26, no el grid corto del Bloque 2 seguido de una extensión separada que casi se pierde por falta de esta misma flexibilidad desde el principio.
 
 **Arquitectura de ejecución**: a diferencia del Bloque 2 (una sola familia Beta(a,a), un solo job), el Bloque 3 tiene 11 subescalas reales independientes — mismo patrón que el Bloque 1 (`simulate-classical`, matrix de 8 familias) en vez del patrón del Bloque 2 (un job secuencial). `06_simulation_plasmode.R` toma la subescala como primer argumento de línea de comandos, y el job `simulate-plasmode` del workflow la shardea vía `strategy.matrix` (11 shards paralelos, cada uno con el grid completo de 8 tamaños de muestra a R=10.000) en vez de un solo job secuencial de más de 2 horas.
+
+## 29. Bloque 4 — escalera de n cerrada por instrumento y arquitectura de `07_real_data_subsampling.R` (19 sep 2026)
+
+Cierre del detalle que quedaba abierto en la sección 6 (múltiplos de Nunnally, sin fijar el grid exacto). Escalera de n por instrumento — múltiplos {1×, 2×, 5×, 10×} del mínimo de Nunnally (10 obs/ítem) + tres puntos de contraste en n pequeño (10, 20, 30):
+
+| Instrumento | Ítems/subescala | Mínimo Nunnally (1×) | Grid completo (7 puntos) |
+|---|---|---|---|
+| RIASEC | 8 | 80 | {10, 20, 30, 80, 160, 400, 800} |
+| RSE | 10 | 100 | {10, 20, 30, 100, 200, 500, 1000} |
+| DASS | 14 | 140 | {10, 20, 30, 140, 280, 700, 1400} |
+| MACH-IV | 20 | 200 | {10, 20, 30, 200, 400, 1000, 2000} |
+
+Los máximos (800-2.000) coinciden con la estimación de la sección 26. Todas las N reales de las 11 subescalas (39.775-144.234) son muy superiores a estos máximos, así que el remuestreo es **sin reemplazo** sin riesgo de agotar la población (criterio explícito: `max(n_grid) < N`, con `stop()` si no se cumple).
+
+**R = 10.000 submuestras por celda**, misma convención que los Bloques 1-3.
+
+**Arquitectura**: mismo patrón que el Bloque 3 (sección 28) — `R/07_real_data_subsampling.R` toma la subescala como primer argumento de línea de comandos (shardeado por matrix de 11 en el workflow), con soporte de `n_list` desde la primera versión del script, no como parche posterior. El grid por defecto se detecta automáticamente por el prefijo del nombre de archivo de la subescala (`dass_`, `riasec_`, `mach_`, `rse_`) mapeado a la escalera de su instrumento. Lee los puntajes crudos de `data/processed/<subescala>.csv` (columna única, nombre variable según subescala — el script la toma genéricamente por posición, no por nombre, para no tener que hardcodear 11 nombres de columna distintos).
