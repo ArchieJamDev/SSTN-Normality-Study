@@ -36,7 +36,12 @@ on:
         default: false
 
       correr_bloque3:
-        description: "Bloque 3 (simulate-plasmode, matrix de 11 subescalas, R=10000) -- bloque activo en desarrollo"
+        description: "Bloque 3 (simulate-plasmode, matrix de 11 subescalas, R=10000) -- cerrado, ver DESIGN.md seccion 28"
+        type: boolean
+        default: false
+
+      correr_bloque4:
+        description: "Bloque 4 (simulate-real-subsampling, matrix de 11 subescalas, R=10000) -- bloque activo en desarrollo"
         type: boolean
         default: true
 
@@ -288,6 +293,60 @@ jobs:
         with:
           name: plasmode-final-${{ matrix.subescala }}
           path: data/results/bloque3_${{ matrix.subescala }}.csv
+
+  # Bloque 4 completo (remuestreo m-out-of-N sobre datos reales), R=10000: un
+  # shard por subescala real (matrix de 11), grid de n especifico por
+  # instrumento (ver notes/DESIGN.md seccion 29). Mismo patron que
+  # simulate-plasmode: no depende de extract-subscales en la misma corrida
+  # (gateado por correr_pilotos_y_reales, default false) -- descarga el
+  # artifact real-subscales-processed directo de la corrida ya validada
+  # (35375789088) por run-id fijo.
+  simulate-real-subsampling:
+    if: ${{ inputs.correr_bloque4 }}
+    permissions:
+      actions: read
+      contents: read
+    strategy:
+      matrix:
+        subescala:
+          - dass_anxiety
+          - dass_depression
+          - dass_stress
+          - mach_total
+          - riasec_artistic
+          - riasec_conventional
+          - riasec_enterprising
+          - riasec_investigative
+          - riasec_realistic
+          - riasec_social
+          - rse_total
+      fail-fast: false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::sstn
+            any::nortest
+            any::moments
+            any::tseries
+            any::fBasics
+            any::gld
+            any::SimMultiCorrData
+      - uses: actions/download-artifact@v4
+        with:
+          name: real-subscales-processed
+          path: data/processed
+          run-id: 35375789088
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Bloque 4 completo (R=10000)
+        run: Rscript R/07_real_data_subsampling.R ${{ matrix.subescala }}.csv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: real-subsampling-final-${{ matrix.subescala }}
+          path: data/results/bloque4_${{ matrix.subescala }}.csv
 
   # Piloto de tiempos del Bloque 1 (replica directa): corre la bateria
   # completa de 10 pruebas (no solo SSTN, que ya se midio en pilot-timing)
