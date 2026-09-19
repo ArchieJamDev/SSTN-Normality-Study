@@ -279,8 +279,12 @@ Implementado `R/02_simulation_platykurtic.R` — mismo patrón que `01_simulatio
 - [x] Tiempos reales confirmados por familia (corrida 35430523246, ver sección 20): 18.8-32.5 min por familia a R=10.000 — sharding por familia alcanza sin partir además por n.
 - [x] Escribir y correr el job final `simulate-classical` (matrix de 8 familias, R=10.000) — corrida 35431776551, 8/8 shards exitosos. **Bloque 1 cerrado** — ver sección 22.
 - [x] Cerrar diseño del Bloque 2 (familia Beta(a,a), a∈{0.5,1,2,3,5,10}) — ver sección 23. `R/02_simulation_platykurtic.R` escrito, job `platykurtic-timing-pilot` agregado.
-- [ ] Correr `platykurtic-timing-pilot`, confirmar tiempos y ausencia de problemas numéricos con a=0.5, luego escribir el job final `simulate-platykurtic` (R=10.000).
+- [ ] Correr `simulate-platykurtic` (Bloque 2, directo a R=10.000 — ver sección 25) y validar el patrón de NA del CSV resultante, igual que con el Bloque 1.
 
 ## 24. Inputs de `workflow_dispatch` para no re-correr bloques ya cerrados (19 sep 2026)
 
 `workflow_dispatch` sin inputs corre TODOS los jobs del archivo en cada disparo, incluidos los ya validados/cerrados (pilotos, extracción de datos reales, Bloque 1 completo con R=10.000) — desperdicio de tiempo y minutos de Actions cada vez que se agrega un job nuevo para otro bloque. Se agregaron tres inputs booleanos (`correr_pilotos_y_reales`, `correr_bloque1`, `correr_bloque2`), cada uno controlando el `if:` de su grupo de jobs, todos en `false` por defecto salvo el bloque activo en desarrollo. Para re-correr algo ya cerrado hay que pasarlo explícito: `gh workflow run simulate.yml -f correr_bloque1=true`.
+
+## 25. Se elimina el piloto de tiempos como paso obligatorio (19 sep 2026)
+
+La justificación original de pilotear con R=200 antes de comprometer R=10.000 (secciones 7 y 17) era evitar pasarse del límite de 6h por job de GitHub Actions. Con el Bloque 1 completo (sección 21) ya hay evidencia real de que ninguna de las 8 familias se acerca a ese límite (18-40 min a R=10.000, costo por réplica similar entre distribuciones) — seguir midiendo tiempos con un piloto aparte ya no aporta nada. Para el Bloque 2 (y bloques futuros con generadores simples de una sola llamada, ej. `rbeta()`) se va directo a R=10.000: `simulate-platykurtic` reemplaza al job `platykurtic-timing-pilot`. La validación de calidad de los resultados (patrón de NA, valores fuera de rango) se sigue haciendo después de la corrida sobre el CSV final, igual que con el Bloque 1 (sección 22) — eso no tiene costo de cómputo adicional, es solo revisión de datos.

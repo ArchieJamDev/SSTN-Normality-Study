@@ -300,13 +300,13 @@ jobs:
           name: classical-final-${{ matrix.familia }}
           path: data/results/bloque1_${{ matrix.familia }}.csv
 
-  # Piloto de tiempos del Bloque 2 (extension platicurtica, familia Beta(a,a)
-  # -- ver DESIGN.md secciones 3 y 23). Una sola familia (no matrix como el
-  # Bloque 1) -- R=200 sobre las 36 celdas (6 valores de a x 6 n), para medir
-  # el costo real antes de comprometer R=10000 y confirmar que no hay
-  # problemas numericos con a=0.5 (forma de "bañera"/arcoseno, la mas alejada
-  # de lo que vieron las pruebas en el Bloque 1).
-  platykurtic-timing-pilot:
+  # Bloque 2 (extension platicurtica, familia Beta(a,a) -- ver DESIGN.md
+  # secciones 3 y 23), directo a R=10000, sin piloto previo: con el Bloque 1
+  # completo (seccion 21) ya hay evidencia real de que ninguna familia se
+  # acerca al limite de 6h (18-40 min a R=10000), asi que medir tiempos de
+  # nuevo no aporta nada -- ver seccion 25. El patron de NA se valida despues
+  # de la corrida sobre el CSV resultante, igual que se hizo para el Bloque 1.
+  simulate-platykurtic:
     if: ${{ inputs.correr_bloque2 }}
     runs-on: ubuntu-latest
     steps:
@@ -322,18 +322,13 @@ jobs:
             any::fBasics
             any::gld
             any::SimMultiCorrData
-      - name: Piloto de tiempos Bloque 2 (R=200)
-        run: Rscript R/02_simulation_platykurtic.R beta 200
+      - name: Bloque 2 completo (R=10000)
+        run: Rscript R/02_simulation_platykurtic.R beta 10000
       - uses: actions/upload-artifact@v4
         with:
-          name: platykurtic-pilot-beta
+          name: platykurtic-final-beta
           path: data/results/bloque2_beta.csv
 
-  # TODO: job "simulate-platykurtic" (Bloque 2, R=10000) una vez confirmado el
-  #       piloto de arriba -- ver DESIGN.md seccion 23. Activar con
-  #       correr_bloque2 (o agregar su propio input si conviene separarlo del
-  #       piloto).
-  #
   # TODO: job "simulate" para el Bloque 3 (calibracion plasmode, mismo patron).
   #
   # TODO: job final "aggregate" que descarga todos los artifacts del matrix y
