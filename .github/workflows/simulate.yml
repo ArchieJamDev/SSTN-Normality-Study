@@ -329,6 +329,37 @@ jobs:
           name: platykurtic-final-beta
           path: data/results/bloque2_beta.csv
 
+  # Corrida exploratoria puntual para decidir el techo de n del Bloque 2 (ver
+  # DESIGN.md seccion 26 -- todavia en discusion si atar n_max a la escalera
+  # de n real del Bloque 4). Corre SOLO n=1000 y n=1500 (12 celdas: 2 n x 6
+  # valores de a, no las 36 del grid completo) para no repetir las celdas de
+  # n<=500 ya cubiertas por simulate-platykurtic. Sale a un archivo con sufijo
+  # _n1000-1500 (no pisa bloque2_beta.csv) -- una vez cerrado el techo final,
+  # estas celdas se concatenan directo con el resto, no hace falta
+  # re-correrlas.
+  platykurtic-explore-n-alto:
+    if: ${{ inputs.correr_bloque2 }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::sstn
+            any::nortest
+            any::moments
+            any::tseries
+            any::fBasics
+            any::gld
+            any::SimMultiCorrData
+      - name: Exploratorio Bloque 2, n=1000 y n=1500 (R=10000)
+        run: Rscript R/02_simulation_platykurtic.R beta 10000 1000,1500
+      - uses: actions/upload-artifact@v4
+        with:
+          name: platykurtic-explore-n-alto
+          path: data/results/bloque2_beta_n1000-1500.csv
+
   # TODO: job "simulate" para el Bloque 3 (calibracion plasmode, mismo patron).
   #
   # TODO: job final "aggregate" que descarga todos los artifacts del matrix y
