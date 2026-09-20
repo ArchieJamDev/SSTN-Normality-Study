@@ -285,7 +285,8 @@ Implementado `R/02_simulation_platykurtic.R` — mismo patrón que `01_simulatio
 - [x] Separar `05_calibration_plasmode.R` (funciones puras) de `05b_pilot_plasmode_sanity.R` (sanity check) y escribir `06_simulation_plasmode.R` con soporte de `n_list` desde el arranque — ver sección 28.
 - [x] Correr el job `simulate-plasmode` (Bloque 3, matrix de 11 subescalas, R=10.000, grid completo {10,25,50,100,250,500,1000,1500}) y validar el patrón de NA del CSV resultante de cada subescala — corrida 35444808801, 11/11 shards exitosos, 88/88 celdas válidas (mismo patrón de NA que los Bloques 1/2: `dagostino_pearson` solo en n=10; sin reaparición del problema de `anscombe.test()` del Bloque 2, ver sección 27 — estas 11 distribuciones no llegan a curtosis tan extrema como a=0.5). **Bloque 3 cerrado.**
 - [x] Cerrar la escalera de n del Bloque 4 por instrumento y escribir `R/07_real_data_subsampling.R` — ver sección 29.
-- [ ] Correr el job `simulate-real-subsampling` (Bloque 4, matrix de 11 subescalas, R=10.000, grid por instrumento) y validar el patrón de NA del CSV resultante de cada subescala.
+- [x] Correr el job `simulate-real-subsampling` (Bloque 4, matrix de 11 subescalas, R=10.000, grid por instrumento) y validar el patrón de NA del CSV resultante de cada subescala — corrida 35446692844, 11/11 shards exitosos a la primera, 77/77 celdas válidas (mismo patrón de NA que los Bloques 1-3: `dagostino_pearson` solo en n=10, nada más). **Bloque 4 cerrado — los cuatro bloques de simulación están completos.**
+- [x] Commitear al repositorio los 8 CSV finales del Bloque 1 (`data/results/bloque1_<familia>.csv`) — nunca se habían versionado pese a que el bloque quedó cerrado en la sección 22; recuperados desde los artifacts de la corrida 35431776551 (`classical-final-<familia>`) y confirmados idénticos en estructura y tamaño (288 filas, 36 por familia) — ver sección 30. **Ahora los cuatro bloques están completos y versionados en `data/results/`.**
 
 ## 24. Inputs de `workflow_dispatch` para no re-correr bloques ya cerrados (19 sep 2026)
 
@@ -363,3 +364,9 @@ Los máximos (800-2.000) coinciden con la estimación de la sección 26. Todas l
 **R = 10.000 submuestras por celda**, misma convención que los Bloques 1-3.
 
 **Arquitectura**: mismo patrón que el Bloque 3 (sección 28) — `R/07_real_data_subsampling.R` toma la subescala como primer argumento de línea de comandos (shardeado por matrix de 11 en el workflow), con soporte de `n_list` desde la primera versión del script, no como parche posterior. El grid por defecto se detecta automáticamente por el prefijo del nombre de archivo de la subescala (`dass_`, `riasec_`, `mach_`, `rse_`) mapeado a la escalera de su instrumento. Lee los puntajes crudos de `data/processed/<subescala>.csv` (columna única, nombre variable según subescala — el script la toma genéricamente por posición, no por nombre, para no tener que hardcodear 11 nombres de columna distintos).
+
+## 30. Los 8 CSV finales del Bloque 1 se versionan en el repositorio (20 sep 2026)
+
+Los datos del Bloque 1 estaban cerrados desde la sección 22 (corrida 35431776551), pero solo existían como artifacts de esa corrida — nunca se habían descargado ni commiteado a `data/results/`. Recuperados y commiteados en esta fecha: `data/results/bloque1_<familia>.csv` (8 archivos, uno por familia). Verificación de consistencia antes del commit: header idéntico en los 8 (`familia,parametro,n,R,<10 pruebas>,<10 _na>,segundos`), 37 líneas cada uno (36 filas de datos + encabezado), total 288 filas — coincide exactamente con lo documentado en la sección 22.
+
+Con esto, los cuatro bloques de simulación (`bloque1_<familia>.csv` ×8, `bloque2_beta.csv`, `bloque3_plasmode.csv`, `bloque4_real.csv`) están completos y versionados en `data/results/`, listos como insumo de `R/99_aggregate_results.R`.
