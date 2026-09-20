@@ -41,7 +41,12 @@ on:
         default: false
 
       correr_bloque4:
-        description: "Bloque 4 (simulate-real-subsampling, matrix de 11 subescalas, R=10000) -- bloque activo en desarrollo"
+        description: "Bloque 4 (simulate-real-subsampling, matrix de 11 subescalas, R=10000) -- cerrado, ver DESIGN.md seccion 30"
+        type: boolean
+        default: false
+
+      correr_agregacion:
+        description: "Agregar los cuatro CSV finales de data/results/ en un consolidado (R/99_aggregate_results.R) -- bloque activo en desarrollo"
         type: boolean
         default: true
 
@@ -347,6 +352,29 @@ jobs:
         with:
           name: real-subsampling-final-${{ matrix.subescala }}
           path: data/results/bloque4_${{ matrix.subescala }}.csv
+
+  # Agrega los cuatro CSV finales de los Bloques 1-4 en un solo dataset
+  # consolidado (ver notes/DESIGN.md seccion 31 y R/99_aggregate_results.R).
+  # No depende de ningun otro job de esta corrida: los CSV de entrada ya
+  # estan commiteados en data/results/ (actions/checkout los trae), no hace
+  # falta descargar artifacts. Tampoco hace falta matrix ni los paquetes de
+  # pruebas estadisticas (sstn, nortest, etc.) -- el script solo usa readr.
+  aggregate-results:
+    if: ${{ inputs.correr_agregacion }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::readr
+      - name: Agregar los cuatro bloques
+        run: Rscript R/99_aggregate_results.R
+      - uses: actions/upload-artifact@v4
+        with:
+          name: consolidado
+          path: data/results/consolidado.csv
 
   # Piloto de tiempos del Bloque 1 (replica directa): corre la bateria
   # completa de 10 pruebas (no solo SSTN, que ya se midio en pilot-timing)
