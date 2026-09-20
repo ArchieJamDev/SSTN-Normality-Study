@@ -46,14 +46,14 @@ on:
         default: false
 
       correr_agregacion:
-        description: "Agregar los CSV finales de data/results/ en un consolidado (R/99_aggregate_results.R) -- correr de nuevo despues de cerrar el Bloque 5 para incluirlo"
-        type: boolean
-        default: false
-
-      correr_bloque5:
-        description: "Bloque 5 (simulate-categorias, matrix escenario x k = 12 shards, R=10000) -- efecto de la cantidad de categorias de respuesta, ver DESIGN.md seccion 32 -- bloque activo en desarrollo"
+        description: "Agregar los CSV finales de data/results/ en un consolidado (R/99_aggregate_results.R) -- incluye el Bloque 5 (12 CSV), ver DESIGN.md seccion 31/33 -- paso activo"
         type: boolean
         default: true
+
+      correr_bloque5:
+        description: "Bloque 5 (simulate-categorias, matrix escenario x k = 12 shards, R=10000) -- efecto de la cantidad de categorias de respuesta -- cerrado, ver DESIGN.md secciones 32/33"
+        type: boolean
+        default: false
 
 jobs:
   # Piloto de tiempos (ya corrido con exito, ver notes/pilot_sstn_timing.txt

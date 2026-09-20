@@ -289,8 +289,9 @@ Implementado `R/02_simulation_platykurtic.R` — mismo patrón que `01_simulatio
 - [x] Commitear al repositorio los 8 CSV finales del Bloque 1 (`data/results/bloque1_<familia>.csv`) — nunca se habían versionado pese a que el bloque quedó cerrado en la sección 22; recuperados desde los artifacts de la corrida 35431776551 (`classical-final-<familia>`) y confirmados idénticos en estructura y tamaño (288 filas, 36 por familia) — ver sección 30. **Ahora los cuatro bloques están completos y versionados en `data/results/`.**
 - [x] Escribir `R/99_aggregate_results.R` y correr el job `aggregate-results` — ver sección 31. `data/results/consolidado.csv` generado y validado (501 filas, sin anomalías).
 - [x] Cerrar el diseño del Bloque 5 (efecto de la cantidad de categorías de respuesta k sobre la potencia de las pruebas de normalidad) — ver sección 32. Umbrales calibrados para las 12 celdas del diseño (Parte A ×4, B1 ×4, B2 ×4), λ=0.8, m=10 ítems fijo. `R/09_calibration_categorias.R` y `R/10_simulation_categorias.R` escritos.
-- [ ] Correr el job `simulate-categorias` (Bloque 5, matrix escenario×k = 12 shards, R=10.000, grid canónico {10,25,50,100,250,500,1000,1500}) y validar el patrón de NA del CSV resultante de cada celda, igual que con los bloques anteriores.
-- [ ] Una vez cerrado el Bloque 5, extender `R/99_aggregate_results.R` para incluir sus 12 CSV en `consolidado.csv` (columnas identificadoras propias: `escenario`, `k`) y volver a correr `aggregate-results`.
+- [x] Correr el job `simulate-categorias` (Bloque 5, matrix escenario×k = 12 shards, R=10.000, grid canónico {10,25,50,100,250,500,1000,1500}) y validar el patrón de NA del CSV resultante de cada celda — corrida 35533073938, 12/12 shards exitosos, 96/96 celdas válidas, sin anomalías. **Bloque 5 cerrado** — ver sección 33 para los resultados y hallazgos.
+- [ ] Extender `R/99_aggregate_results.R` para incluir los 12 CSV del Bloque 5 en `consolidado.csv` (columnas identificadoras propias: `escenario`, `k`) y volver a correr `aggregate-results`.
+- [x] Evaluar el comportamiento real de la categoría central en RIASEC y MACH-IV (los dos instrumentos de escala impar del proyecto) antes de decidir si se extendía el Bloque 5 con inflación del punto medio — ver sección 33. **Decisión: no se extiende la simulación** (opción 1) — el hallazgo (RIASEC abultado, MACH-IV con déficit en el centro) queda documentado para la discusión/limitaciones del manuscrito.
 - [ ] Con los resultados del Bloque 5 en mano, decidir si se integra al artículo original (Bloques 1-4, destino AJS) o si amerita un artículo aparte (candidatos ya discutidos: Psicothema, Methodology) — decisión explícitamente diferida por el usuario hasta tener los resultados.
 
 ## 24. Inputs de `workflow_dispatch` para no re-correr bloques ya cerrados (19 sep 2026)
@@ -469,3 +470,43 @@ Convergencia esencialmente exacta en los cuatro niveles de k.
 Mismo patrón de separación que el Bloque 3 (sección 28): `R/09_calibration_categorias.R` contiene solo las funciones puras (la tabla de umbrales calibrados de arriba, hardcodeada, y `generar_categorias(escenario, k, n)`), sin efectos secundarios. `R/10_simulation_categorias.R` toma `<escenario> <k> [R] [n_list]` por línea de comandos y corre `run_battery()` (R/08_run_battery.R) sobre cada réplica — mismo patrón que `06_simulation_plasmode.R`.
 
 **Matrix del workflow**: a diferencia de los bloques anteriores (un solo eje: familia o subescala), el Bloque 5 tiene dos ejes cruzados (escenario × k = 12 combinaciones). El job `simulate-categorias` usa `strategy.matrix` con `escenario: [A_simetrica, B1_riasec_realistic, B2_dass_depression]` y `k: [3,4,5,6]` como dos claves separadas — GitHub Actions genera automáticamente el producto cruzado (12 shards), sin necesidad de una lista de 12 pares escrita a mano.
+
+## 33. Bloque 5 — resultados: alternancia par/impar en potencia y verificación empírica del comportamiento del punto medio (20 sep 2026)
+
+Corrida 35533073938, job `simulate-categorias`, 12/12 shards exitosos, 96/96 celdas válidas (8 n × 12 celdas escenario×k), mismo patrón de NA que los bloques anteriores (`dagostino_pearson` solo en n=10). CSV finales commiteados en `data/results/bloque5_<escenario>_k<k>.csv` (commit `da730e8`).
+
+### Tres patrones cualitativamente distintos por escenario
+
+- **Parte A (discreción pura, sin objetivo real)**: la potencia de las 10 pruebas cae de forma **monotónica** en k. Ejemplo SSTN, n=100: k=3→0.968, k=4→0.874, k=5→0.774, k=6→0.706. Coherente con la tabla de curtosis inducida de la sección 32 (Parte A): más categorías acercan el compuesto a la normal por la sola discreción, así que hay menos señal que detectar.
+- **Parte B2 (`dass_depression`, curtosis extrema real)**: la potencia queda prácticamente **plana** en k, en las 10 pruebas. Ejemplo SSTN, n=100: 0.895 (k=3) a 0.900 (k=6) — diferencia irrelevante. Cuando el efecto real es lo bastante grande, la cantidad de categorías deja de importar.
+- **Parte B1 (`riasec_realistic`, asimetría real moderada)**: patrón **no monotónico** — alternancia par/impar. k=3 y k=5 (impar) rinden sistemáticamente más potencia que k=4 y k=6 (par), en las 10 pruebas de la batería, no solo en SSTN. La brecha promedio (impar − par, en n=25/50/100) varía mucho por prueba:
+
+| Prueba | Brecha impar−par |
+|---|---|
+| Pearson χ² | 0.281 |
+| Lilliefors | 0.184 |
+| Cramér-von Mises | 0.170 |
+| Anderson-Darling | 0.158 |
+| Shapiro-Francia | 0.145 |
+| Shapiro-Wilk | 0.135 |
+| Curtosis (Anscombe) | 0.132 |
+| D'Agostino-Pearson | 0.085 |
+| **SSTN** | **0.067** |
+| Jarque-Bera | 0.018 |
+
+SSTN queda entre las pruebas MÁS estables frente a esta alternancia (solo Jarque-Bera es más estable); Pearson χ² y Lilliefors son las más sensibles.
+
+**Descartada la explicación trivial**: k=3 en B1 no alcanzó el objetivo de calibración con precisión exacta (hallazgo ya documentado en la sección 32 — asimetría lograda 0.7318 vs. objetivo 0.7220), lo que podría explicar por sí solo su potencia elevada. Pero k=5 se calibró casi perfecto (asimetría 0.7220 vs. objetivo 0.7220) y muestra el mismo patrón elevado que k=3 — la alternancia par/impar no es un artefacto de esa imprecisión de calibración, es un efecto genuino ligado a si k tiene o no una categoría central simétrica (impar sí, par no) interactuando con un objetivo asimétrico.
+
+### Verificación empírica del comportamiento del punto medio en datos reales
+
+Antes de decidir si el Bloque 5 se extendía con un escenario adicional de "inflación del punto medio" (para modelar sesgos conductuales reales — evitación del compromiso/satisficing, o deseabilidad social), se revisó el comportamiento real de la categoría central en los dos instrumentos del proyecto con escala impar (RIASEC y MACH-IV, ambos Likert 1-5, categoría 3="Neutral"; RSE y DASS son de 4 categorías, sin punto medio, no aplica).
+
+**Método**: sobre los datos crudos (`data/raw/RIASEC_data12Dec2018.zip`, `data/raw/MACH_data.zip`, mismos archivos que usa `R/03_extract_real_subscales.R`), para cada ítem se calculó la proporción observada en cada categoría (1-5) sobre el N completo, y un indicador de abultamiento en el centro: `bump = p3 − promedio(p2, p4)`. Un valor cercano a cero indica que la categoría central tiene la masa que predice una interpolación suave entre sus vecinas; positivo indica exceso de masa en el centro; negativo indica déficit.
+
+- **RIASEC (48 ítems, N≈145.828)**: 44/48 ítems con `bump` positivo (promedio +0.030, mediana +0.026; hasta +0.14 en R1 "Test the quality of parts before shipment", +0.11 en C6 "Operate a calculator"). Perfil promedio de categorías: p1=0.29, p2=0.18, **p3=0.21**, p4=0.19, p5=0.14 — el centro por encima de sus dos vecinas en casi todos los ítems.
+- **MACH-IV (20 ítems, N≈73.489, columna `QxA`)**: patrón OPUESTO — 19/20 ítems con `bump` NEGATIVO (promedio −0.073, mediana −0.079). Perfil promedio: p1=0.26, p2=0.18, **p3=0.12**, p4=0.20, p5=0.24 — el centro claramente por debajo de sus vecinas.
+
+**Interpretación**: contradice la hipótesis simple de partida ("constructo sensible → más uso del punto medio por deseabilidad social"). En RIASEC (constructo de bajo riesgo, intereses vocacionales) hay abultamiento real en el centro — consistente con ambivalencia genuina en ítems de poca carga emocional ("ni me gusta ni me disgusta operar una calculadora"). En MACH-IV (constructo con dirección socialmente esperada clara — afirmaciones sobre manipulación/naturaleza humana) el centro se evita, no se busca — consistente con que la deseabilidad social ahí empuja hacia el extremo "correcto" (acuerdo fuerte con ítems prosociales, desacuerdo fuerte con ítems manipuladores) en vez de esconder la postura en el centro. Es decir: la deseabilidad social puede producir moderación (retirada al centro) O polarización (extremismo hacia la respuesta esperada), según el tipo de ítem — ambos patrones aparecen en este mismo proyecto, en direcciones opuestas.
+
+**Decisión (20 sep 2026)**: no se extiende la simulación del Bloque 5 con un escenario de inflación del punto medio. Un solo parámetro de inflación (con un único signo) no representaría bien el fenómeno real, que va en direcciones opuestas según el constructo — hacerlo bien exigiría calibrar dos escenarios distintos (uno tipo RIASEC, uno tipo MACH-IV), lo cual excede el alcance actual. En su lugar, este hallazgo (alternancia par/impar puramente geométrica en la simulación + evidencia real de que el uso del punto medio no es uniforme ni de un solo signo) queda documentado para la discusión/limitaciones del manuscrito: la simulación aísla el efecto geométrico puro de k (umbrales sobre una variable latente suave, sin sesgo conductual), y los datos reales muestran que el sesgo conductual adicional existe pero su dirección depende del constructo — un límite honesto del alcance del Bloque 5, no una laguna oculta.
