@@ -370,3 +370,20 @@ Los máximos (800-2.000) coinciden con la estimación de la sección 26. Todas l
 Los datos del Bloque 1 estaban cerrados desde la sección 22 (corrida 35431776551), pero solo existían como artifacts de esa corrida — nunca se habían descargado ni commiteado a `data/results/`. Recuperados y commiteados en esta fecha: `data/results/bloque1_<familia>.csv` (8 archivos, uno por familia). Verificación de consistencia antes del commit: header idéntico en los 8 (`familia,parametro,n,R,<10 pruebas>,<10 _na>,segundos`), 37 líneas cada uno (36 filas de datos + encabezado), total 288 filas — coincide exactamente con lo documentado en la sección 22.
 
 Con esto, los cuatro bloques de simulación (`bloque1_<familia>.csv` ×8, `bloque2_beta.csv`, `bloque3_plasmode.csv`, `bloque4_real.csv`) están completos y versionados en `data/results/`, listos como insumo de `R/99_aggregate_results.R`.
+
+## 31. `R/99_aggregate_results.R` — dataset consolidado de los cuatro bloques (20 sep 2026)
+
+Los cuatro CSV finales comparten columnas comunes (`n`, `R`, las 10 pruebas como tasa de rechazo, sus 10 columnas `_na`, `segundos`) pero difieren en sus columnas identificadoras, confirmadas contra los headers reales de cada archivo:
+
+| Bloque | Archivo(s) | Columnas identificadoras propias |
+|---|---|---|
+| 1 (réplica directa) | `bloque1_<familia>.csv` ×8 | `familia`, `parametro` |
+| 2 (platicúrtico) | `bloque2_beta.csv` | `familia`, `parametro` |
+| 3 (plasmode/GLD) | `bloque3_plasmode.csv` | `subescala` |
+| 4 (remuestreo real) | `bloque4_real.csv` | `subescala`, `instrumento`, `N` |
+
+`R/99_aggregate_results.R` lee los cuatro (concatenando los 8 archivos del Bloque 1), agrega `bloque` (1-4) y `bloque_nombre`, completa con NA las columnas identificadoras que no aplican a cada bloque, y escribe `data/results/consolidado.csv` en formato ancho único. Antes de guardar, valida programáticamente: conteo de filas por bloque contra lo documentado (288/48/88/77, secciones 22/23/28/29 — total 501), y que todas las tasas de rechazo estén en [0,1].
+
+**Decisión de implementación**: a diferencia del resto de los scripts, este NO hace `source("R/00_setup.R")` — no necesita ninguno de los paquetes de pruebas estadísticas (`sstn`, `nortest`, `moments`, `tseries`, `fBasics`, `gld`, `SimMultiCorrData`) que ese script instala para el resto del proyecto, solo `readr`. El job `aggregate-results` en el workflow instala únicamente `readr` en vez de los 7 paquetes pesados, y no depende de ningún otro job de la misma corrida: usa los CSV ya commiteados en `data/results/` vía `actions/checkout`, no artifacts.
+
+De paso se cierra un cabo suelto: `correr_bloque4` quedó con default `true` cuando se agregó (sección 29), pero el Bloque 4 ya está cerrado — se cambia a `false` en este mismo parche, siguiendo la convención de la sección 24.
