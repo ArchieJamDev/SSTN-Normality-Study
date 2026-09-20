@@ -287,6 +287,11 @@ Implementado `R/02_simulation_platykurtic.R` — mismo patrón que `01_simulatio
 - [x] Cerrar la escalera de n del Bloque 4 por instrumento y escribir `R/07_real_data_subsampling.R` — ver sección 29.
 - [x] Correr el job `simulate-real-subsampling` (Bloque 4, matrix de 11 subescalas, R=10.000, grid por instrumento) y validar el patrón de NA del CSV resultante de cada subescala — corrida 35446692844, 11/11 shards exitosos a la primera, 77/77 celdas válidas (mismo patrón de NA que los Bloques 1-3: `dagostino_pearson` solo en n=10, nada más). **Bloque 4 cerrado — los cuatro bloques de simulación están completos.**
 - [x] Commitear al repositorio los 8 CSV finales del Bloque 1 (`data/results/bloque1_<familia>.csv`) — nunca se habían versionado pese a que el bloque quedó cerrado en la sección 22; recuperados desde los artifacts de la corrida 35431776551 (`classical-final-<familia>`) y confirmados idénticos en estructura y tamaño (288 filas, 36 por familia) — ver sección 30. **Ahora los cuatro bloques están completos y versionados en `data/results/`.**
+- [x] Escribir `R/99_aggregate_results.R` y correr el job `aggregate-results` — ver sección 31. `data/results/consolidado.csv` generado y validado (501 filas, sin anomalías).
+- [x] Cerrar el diseño del Bloque 5 (efecto de la cantidad de categorías de respuesta k sobre la potencia de las pruebas de normalidad) — ver sección 32. Umbrales calibrados para las 12 celdas del diseño (Parte A ×4, B1 ×4, B2 ×4), λ=0.8, m=10 ítems fijo. `R/09_calibration_categorias.R` y `R/10_simulation_categorias.R` escritos.
+- [ ] Correr el job `simulate-categorias` (Bloque 5, matrix escenario×k = 12 shards, R=10.000, grid canónico {10,25,50,100,250,500,1000,1500}) y validar el patrón de NA del CSV resultante de cada celda, igual que con los bloques anteriores.
+- [ ] Una vez cerrado el Bloque 5, extender `R/99_aggregate_results.R` para incluir sus 12 CSV en `consolidado.csv` (columnas identificadoras propias: `escenario`, `k`) y volver a correr `aggregate-results`.
+- [ ] Con los resultados del Bloque 5 en mano, decidir si se integra al artículo original (Bloques 1-4, destino AJS) o si amerita un artículo aparte (candidatos ya discutidos: Psicothema, Methodology) — decisión explícitamente diferida por el usuario hasta tener los resultados.
 
 ## 24. Inputs de `workflow_dispatch` para no re-correr bloques ya cerrados (19 sep 2026)
 
@@ -387,3 +392,80 @@ Los cuatro CSV finales comparten columnas comunes (`n`, `R`, las 10 pruebas como
 **Decisión de implementación**: a diferencia del resto de los scripts, este NO hace `source("R/00_setup.R")` — no necesita ninguno de los paquetes de pruebas estadísticas (`sstn`, `nortest`, `moments`, `tseries`, `fBasics`, `gld`, `SimMultiCorrData`) que ese script instala para el resto del proyecto, solo `readr`. El job `aggregate-results` en el workflow instala únicamente `readr` en vez de los 7 paquetes pesados, y no depende de ningún otro job de la misma corrida: usa los CSV ya commiteados en `data/results/` vía `actions/checkout`, no artifacts.
 
 De paso se cierra un cabo suelto: `correr_bloque4` quedó con default `true` cuando se agregó (sección 29), pero el Bloque 4 ya está cerrado — se cambia a `false` en este mismo parche, siguiendo la convención de la sección 24.
+
+## 32. Bloque 5 — diseño cerrado: efecto de la cantidad de categorías de respuesta (k) sobre la potencia de las pruebas de normalidad (20 sep 2026)
+
+**Motivación** (a partir de la discusión de resultados de los Bloques 1-4 con el usuario, 20 sep 2026): más allá de comparar el SSTN contra las pruebas clásicas sobre distribuciones ya dadas, interesa dar información útil al psicómetra que diseña o adapta un instrumento — específicamente, si la cantidad de categorías de respuesta de cada ítem tipo Likert afecta la capacidad de las diez pruebas (SSTN incluido) para detectar una desviación real y conocida de la normalidad en el puntaje compuesto.
+
+### Mecanismo generador
+
+Factor común θ ~ N(0,1); m=10 ítems; cada ítem se genera como
+
+item_j = λ·θ + sqrt(1−λ²)·ε_j,  ε_j ~ N(0,1) iid, j = 1..10
+
+y se discretiza en k categorías ordenadas mediante k−1 umbrales aplicados sobre la variable latente continua. El compuesto es la suma de los m ítems ya discretizados — la misma lógica de puntaje tipo Likert-suma que las 11 subescalas reales de los Bloques 3 y 4 (ver sección 18 sobre la naturaleza ordinal de estos puntajes).
+
+**m=10 fijo en las 12 celdas del diseño**: la cantidad de ítems se mantiene constante a propósito, como variable controlada. La única variable manipulada es k. Así, cualquier diferencia en la potencia de las pruebas entre niveles de k queda limpiamente atribuible al número de categorías de respuesta, sin quedar mezclada con un efecto de la cantidad de ítems.
+
+**Nota sobre rango de valores posibles vs. mecanismo del diseño**: con m=10 ítems, el compuesto va de 10 a 30 con k=3 y de 10 a 60 con k=6 — un rango más amplio, que en principio también implica más varianza. Ese ensanchamiento del rango no es, por sí mismo, la fuente de las diferencias de potencia que interesa medir aquí (ver Parte A más abajo, donde el rango crece con k pero la curtosis inducida por la sola discreción se acerca a cero, no al revés). Por eso las Partes B1 y B2 calibran los umbrales para que el compuesto llegue exactamente al mismo objetivo real de asimetría/curtosis en los cuatro niveles de k: así, la comparación de potencia entre niveles de k aísla el efecto de la cantidad de categorías sobre la detección de una forma de no-normalidad que se mantiene constante, en vez de confundirse con un simple efecto de escala/rango.
+
+### Tres escenarios × cuatro niveles de k = 12 celdas
+
+- **Parte A (simétrica, sin calibrar)**: umbrales de cuantiles equiespaciados (`qnorm((1:(k-1))/k)`), asimetría≈0 por construcción. Sirve como línea base — mide el efecto de la sola discreción (sin ninguna asimetría/curtosis real inducida) sobre la forma del compuesto.
+- **Parte B1 (`riasec_realistic`, asimetría dominante)**: objetivo asimetría=0.7220, curtosis exceso=−0.1463 (momentos reales de esa subescala, `data/processed/plasmode_calibration.csv`, ver sección 14). Elegido a pedido del usuario como caso de asimetría genuina "como realmente pasa al medir constructos generales", en vez de un objetivo con asimetría casi nula.
+- **Parte B2 (`dass_depression`, curtosis dominante)**: objetivo asimetría=0.0386, curtosis exceso=−1.1549 — la subescala con la curtosis en exceso más extrema del conjunto de 11 (sección 14). Se mantiene como escenario paralelo a B1 (no lo reemplaza) a pedido explícito del usuario, para tener dos regímenes de no-normalidad claramente distintos: uno dominado por asimetría (B1) y otro dominado por curtosis (B2).
+
+k ∈ {3,4,5,6} en los tres escenarios — rango motivado por Lozano, García-Cueto & Muñiz (2008, *Methodology*, 4(2), 73-79): confiabilidad/validez inaceptables por debajo de 4 categorías, rango óptimo 4-7, retornos decrecientes más allá de 7 — de ahí que el barrido se concentre en el tramo donde la literatura psicométrica documenta que la decisión de diseño realmente importa.
+
+### Hallazgo de factibilidad: λ=0.6 → λ=0.8
+
+Con λ=0.6 (carga factorial inicial), el objetivo de curtosis de la Parte B2 (−1.1549) resultó **inviable** para cualquier k∈{3,4,5,6}: el optimizador se estancaba en curtosis≈−0.995/−0.996 sin importar cómo se acomodaran los umbrales. Diagnóstico: con una carga factorial baja, el promedio de 10 ítems (por el teorema central del límite) diluye demasiado cualquier platicurtosis extrema que se intente inducir por discretización, sin importar dónde se coloquen los umbrales — un límite estructural, no un error de optimización, análogo al hallazgo de infactibilidad de Fleishman del Bloque 3 (sección 12).
+
+**Corrección**: se subió λ a 0.8, con el que las 12 celdas convergen (con una excepción documentada abajo, Parte B1 k=3). λ=0.8 también es más realista psicométricamente — corresponde a una correlación inter-ítem alta, coherente con escalas clínicas de alta confiabilidad como el DASS.
+
+### Parte A — curtosis inducida por la sola discreción (λ=0.8, sin calibrar)
+
+| k | umbrales | asimetría lograda | curtosis exceso lograda |
+|---|---|---|---|
+| 3 | −0.430727, 0.430727 | ≈0.002 | −1.2329 |
+| 4 | −0.674490, 0.000000, 0.674490 | ≈0.002 | −1.1388 |
+| 5 | −0.841621, −0.253347, 0.253347, 0.841621 | ≈0.003 | −1.0823 |
+| 6 | −0.967422, −0.430727, 0.000000, 0.430727, 0.967422 | ≈0.002 | −1.0449 |
+
+Hallazgo propio de esta parte: incluso sin ninguna desviación real inducida, la discreción por sí sola produce platicurtosis medible, que se reduce (pero no desaparece) conforme k aumenta — de −1.23 (k=3) a −1.04 (k=6). Es decir, más categorías acercan el compuesto a la normal por el solo hecho de aproximarse más a una escala continua, independientemente de cualquier efecto de rango/varianza.
+
+### Parte B1 — `riasec_realistic` (objetivo asimetría=0.7220, curtosis exceso=−0.1463), umbrales calibrados vía optimización numérica
+
+| k | umbrales | asimetría lograda | curtosis exceso lograda |
+|---|---|---|---|
+| 3 | 0.149688, 1.733351 | 0.7318 | −0.1515 |
+| 4 | −0.382251, 0.783554, 1.286023 | 0.7220 | −0.1464 |
+| 5 | 0.014722, 0.281181, 1.675442, 1.862090 | 0.7220 | −0.1463 |
+| 6 | −0.652662, 0.044506, 0.825368, 1.103223, 1.318492 | 0.7220 | −0.1463 |
+
+**k=3 no alcanza el objetivo con precisión exacta** (asimetría lograda 0.7318 vs. objetivo 0.7220; curtosis −0.1515 vs. −0.1463) pese a probar múltiples puntos de partida del optimizador — con solo 2 umbrales (2 parámetros libres) para hacer calzar simultáneamente 2 momentos objetivo, k=3 tiene el mínimo de flexibilidad posible en este diseño, y el punto (0.7220, −0.1463) queda justo fuera de la región exactamente alcanzable con m=10, λ=0.8 y k=3. Se documenta como hallazgo propio (mismo criterio que la infactibilidad de λ=0.6 más arriba, o la infactibilidad de Fleishman del Bloque 3, sección 12): k=3 no es solo "peor" psicométricamente por convención de la literatura — aquí además limita, de forma demostrable, qué formas de no-normalidad puede siquiera representar un compuesto de 10 ítems. Se usa el umbral que minimiza la distancia al objetivo (diferencia de 0.0098 en asimetría, 0.0052 en curtosis exceso) en vez de forzar una solución exacta inexistente.
+
+### Parte B2 — `dass_depression` (objetivo asimetría=0.0386, curtosis exceso=−1.1549), umbrales calibrados vía optimización numérica
+
+| k | umbrales | asimetría lograda | curtosis exceso lograda |
+|---|---|---|---|
+| 3 | −0.468331, 0.529549 | 0.0386 | −1.1549 |
+| 4 | −0.587470, 0.007969, 0.719825 | 0.0386 | −1.1549 |
+| 5 | −0.703984, −0.243605, 0.320351, 0.699274 | 0.0386 | −1.1549 |
+| 6 | −0.809481, −0.343401, 0.046172, 0.391858, 0.784547 | 0.0386 | −1.1549 |
+
+Convergencia esencialmente exacta en los cuatro niveles de k.
+
+**Método de calibración**: para cada celda de B1/B2, los umbrales se parametrizan como `primer_umbral + cumsum(exp(log_gaps))` (garantiza umbrales crecientes bajo optimización sin restricciones) y se ajustan vía `optim(method="Nelder-Mead")` minimizando la suma de cuadrados de la distancia a (asimetría objetivo, curtosis objetivo), evaluada sobre una única generación fija de números aleatorios (números aleatorios comunes, N=150.000, semilla 20260920) a lo largo de toda la optimización de una celda, para una superficie objetivo suave y sin ruido de Monte Carlo entre evaluaciones. Prototipado y validado localmente antes de escribir el script final del repositorio (mismo criterio que los pilotos anteriores del proyecto, ej. sección 12).
+
+### n y R
+
+**Grid de n**: se usa el mismo grid canónico de los Bloques 2 y 3, {10,25,50,100,250,500,1000,1500} (sección 26), por comparabilidad directa entre bloques y para poder observar si las diferencias de potencia entre niveles de k se sostienen, se amplían o se diluyen conforme n crece (a n grande, la potencia de varias pruebas tiende a saturar cerca de 1 sin importar k, lo cual es en sí mismo parte de la respuesta a la pregunta del Bloque 5).
+
+**R=10.000** réplicas por celda, misma convención que los Bloques 1-4.
+
+### Arquitectura de implementación
+
+Mismo patrón de separación que el Bloque 3 (sección 28): `R/09_calibration_categorias.R` contiene solo las funciones puras (la tabla de umbrales calibrados de arriba, hardcodeada, y `generar_categorias(escenario, k, n)`), sin efectos secundarios. `R/10_simulation_categorias.R` toma `<escenario> <k> [R] [n_list]` por línea de comandos y corre `run_battery()` (R/08_run_battery.R) sobre cada réplica — mismo patrón que `06_simulation_plasmode.R`.
+
+**Matrix del workflow**: a diferencia de los bloques anteriores (un solo eje: familia o subescala), el Bloque 5 tiene dos ejes cruzados (escenario × k = 12 combinaciones). El job `simulate-categorias` usa `strategy.matrix` con `escenario: [A_simetrica, B1_riasec_realistic, B2_dass_depression]` y `k: [3,4,5,6]` como dos claves separadas — GitHub Actions genera automáticamente el producto cruzado (12 shards), sin necesidad de una lista de 12 pares escrita a mano.
