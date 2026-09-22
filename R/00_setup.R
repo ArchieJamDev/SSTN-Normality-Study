@@ -8,6 +8,7 @@ pkgs <- c(
   "moments",          # Jarque-Bera, asimetria, curtosis
   "tseries",          # Jarque-Bera (alternativa)
   "fBasics",          # D'Agostino-Pearson (dagoTest) y utilidades de momentos
+  "nortsTest",        # Epps-Pulley (epps.test), basada en la funcion caracteristica empirica
   "gld",              # Distribucion lambda generalizada (Ramberg-Schmeiser / FKML), ajuste por momentos-L
   "SimMultiCorrData", # Metodo de potencias de Fleishman + extension de quinto orden de Headrick, chequeo de factibilidad
   "dplyr",

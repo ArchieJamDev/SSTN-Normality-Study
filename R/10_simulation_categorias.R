@@ -3,17 +3,19 @@
 # Bloque 5 -- simulacion completa del efecto de la cantidad de categorias
 # de respuesta (k) sobre la potencia de las pruebas de normalidad (ver
 # notes/DESIGN.md seccion 32). Para UN escenario y UN k del diseño (12
-# celdas en total: 3 escenarios x k in {3,4,5,6}) y cada tamaño de muestra
-# del grid, genera R replicas de puntajes compuestos via
-# generar_categorias() (R/09_calibration_categorias.R) y corre la bateria
-# completa de 10 pruebas (R/08_run_battery.R).
+# escenarios x k in {3,...,8} = 72 celdas en total desde la ampliacion de
+# sep 2026 -- ver R/09b_calibrar_extension_bloque5.R; diseño original: 3
+# escenarios x k in {3,4,5,6} = 12 celdas) y cada tamaño de muestra del
+# grid, genera R replicas de puntajes compuestos via generar_categorias()
+# (R/09_calibration_categorias.R) y corre la bateria completa de 11
+# pruebas (R/08_run_battery.R, incluye Epps-Pulley desde sep 2026).
 #
 # A diferencia de los bloques anteriores (un solo eje que varia entre
 # corridas -- familia en el Bloque 1, subescala en los Bloques 3/4 --),
 # aca hay DOS ejes cruzados (escenario x k), por eso este script toma
 # ambos como los dos primeros argumentos de linea de comandos, y el
 # workflow los shardea con una matrix de dos claves (escenario, k) en vez
-# de una lista de 12 pares escrita a mano -- ver DESIGN.md seccion 32.
+# de una lista de pares escrita a mano -- ver DESIGN.md seccion 32.
 #
 # n grid por defecto {10,25,50,100,250,500,1000,1500} -- mismo grid
 # canonico que los Bloques 2 y 3 (DESIGN.md seccion 26), por
@@ -22,9 +24,15 @@
 # DESIGN.md seccion 28, incidente del Bloque 2).
 #
 # Uso: Rscript R/10_simulation_categorias.R <escenario> <k> [R] [n_list]
-#   <escenario>: "A_simetrica", "B1_riasec_realistic" o
-#                "B2_dass_depression"
-#   <k>: numero de categorias de respuesta (3, 4, 5 o 6)
+#   <escenario>: "A_simetrica", "B1_riasec_realistic",
+#                "B2_dass_depression", o uno de los 9 escenarios nuevos
+#                C1_dass_anxiety, C2_dass_stress, C3_mach_total,
+#                C4_riasec_artistic, C5_riasec_conventional,
+#                C6_riasec_enterprising, C7_riasec_investigative,
+#                C8_riasec_social, C9_rse_total (ver
+#                R/09b_calibrar_extension_bloque5.R para el mapeo a
+#                subescala real)
+#   <k>: numero de categorias de respuesta (3 a 8)
 #   [R]: numero de replicas Monte Carlo por celda (default 10000)
 #   [n_list]: lista de tamaños de muestra separados por coma. Default:
 #             grid completo de arriba. Si se pasa un grid distinto al
@@ -70,13 +78,21 @@ set.seed(20260920)
 filas <- list()
 idx <- 1
 for (n in n_grid) {
-  rechazos <- matrix(NA, nrow = R_replicas, ncol = 10)
+  # Numero de pruebas de la bateria detectado en la primera replica (11
+  # desde la adicion de Epps-Pulley) -- ya NO hardcodeado a 10, para no
+  # tener que tocar este script cada vez que cambie la composicion de la
+  # bateria en R/08_run_battery.R (ver incidente equivalente evitado en
+  # R/07_real_data_subsampling.R al agregar esta prueba).
+  rechazos <- NULL
   nombres_pruebas <- NULL
   t0 <- Sys.time()
   for (r in seq_len(R_replicas)) {
     x <- generar_categorias(escenario_elegido, k_elegido, n)
     pvals <- run_battery(x)
-    if (is.null(nombres_pruebas)) nombres_pruebas <- names(pvals)
+    if (is.null(rechazos)) {
+      nombres_pruebas <- names(pvals)
+      rechazos <- matrix(NA, nrow = R_replicas, ncol = length(pvals))
+    }
     rechazos[r, ] <- pvals < 0.05
   }
   tasas <- colMeans(rechazos, na.rm = TRUE)

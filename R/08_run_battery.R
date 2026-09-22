@@ -1,14 +1,19 @@
 # 08_run_battery.R
-# Funcion compartida: corre la bateria completa de 10 pruebas sobre un vector
-# de datos y devuelve un vector nombrado de p-valores. La usan 01, 02, 05 y 07
-# — logica de las pruebas en un solo lugar, no duplicada en cada script de
-# simulacion.
+# Funcion compartida: corre la bateria completa de 11 pruebas sobre un vector
+# de datos y devuelve un vector nombrado de p-valores. La usan 01, 02, 05, 07
+# y 10 — logica de las pruebas en un solo lugar, no duplicada en cada script
+# de simulacion.
 #
-# Cada una de las 9 pruebas clasicas usa su propia funcion canonica de un
+# Cada una de las 10 pruebas clasicas usa su propia funcion canonica de un
 # paquete de R, sin ambiguedad conceptual entre ellas (ver notes/DESIGN.md
 # seccion 9): Jarque-Bera (tseries) y D'Agostino-Pearson (fBasics, estadistico
 # Omnibus) son dos omnibus de momentos DISTINTOS con calibracion distinta; la
-# prueba de curtosis (moments::anscombe.test) es aparte, prueba solo curtosis.
+# prueba de curtosis (moments::anscombe.test) es aparte, prueba solo curtosis;
+# Epps-Pulley (nortsTest::epps.test) es una prueba basada en la funcion
+# caracteristica empirica estandarizada -- afin metodologicamente al SSTN
+# (que tambien itera transformaciones de la funcion caracteristica empirica
+# estandarizada), agregada a pedido del usuario a partir de una sugerencia de
+# revision externa (ver notes/DESIGN.md, adicion de sep 2026).
 #
 # sstn::sstn() confirmado en el piloto real (ver DESIGN.md seccion 10):
 # firma sstn::sstn(x, verbose = TRUE); calibra la nula internamente en cada
@@ -17,10 +22,10 @@
 
 source("R/00_setup.R")
 
-#' Corre las 10 pruebas de normalidad sobre un vector numerico.
+#' Corre las 11 pruebas de normalidad sobre un vector numerico.
 #'
 #' @param x vector numerico (la muestra a evaluar)
-#' @return vector numerico nombrado con los 10 p-valores; NA en la prueba que
+#' @return vector numerico nombrado con los 11 p-valores; NA en la prueba que
 #'   no se pudo calcular (ej. Shapiro-Wilk fuera de su rango valido de n)
 run_battery <- function(x) {
   n <- length(x)
@@ -55,6 +60,7 @@ run_battery <- function(x) {
   p_shapiro_francia <- safe_p(nortest::sf.test(x)$p.value)
   p_pearson_chi2   <- safe_p(nortest::pearson.test(x)$p.value)
   p_curtosis       <- safe_p(moments::anscombe.test(x)$p.value)
+  p_epps_pulley    <- safe_p(nortsTest::epps.test(x, lambda = c(1, 2))$p.value)
   p_sstn           <- safe_p(sstn::sstn(x, verbose = FALSE)$p.value)
 
   c(
@@ -67,6 +73,7 @@ run_battery <- function(x) {
     shapiro_francia      = p_shapiro_francia,
     pearson_chi2         = p_pearson_chi2,
     curtosis             = p_curtosis,
+    epps_pulley          = p_epps_pulley,
     sstn                 = p_sstn
   )
 }

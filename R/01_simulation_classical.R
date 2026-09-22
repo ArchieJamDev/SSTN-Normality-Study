@@ -3,8 +3,9 @@
 # Bloque 1 -- replica directa del paper original (Anarat & Schwender 2026).
 # Genera R replicas Monte Carlo de UNA familia de distribuciones (pasada por
 # linea de comandos) x 6 valores de parametro x 6 tamaños de muestra (36
-# celdas), corre la bateria de 10 pruebas (R/08_run_battery.R) sobre cada
-# replica, y guarda la tasa de rechazo (p < .05) por prueba y celda.
+# celdas), corre la bateria de 11 pruebas (R/08_run_battery.R, incluye
+# Epps-Pulley desde sep 2026) sobre cada replica, y guarda la tasa de
+# rechazo (p < .05) por prueba y celda.
 #
 # Especificacion de las 8 familias y sus parametros CONFIRMADA VERBATIM
 # contra el texto real del paper -- Tabla 1 de arxiv.org/html/2604.03810
@@ -103,13 +104,21 @@ filas <- list()
 idx <- 1
 for (valor in valores_parametro) {
   for (n in n_grid) {
-    rechazos <- matrix(NA, nrow = R_replicas, ncol = 10)
+    # Numero de pruebas de la bateria detectado en la primera replica (11
+    # desde la adicion de Epps-Pulley) -- ya NO hardcodeado a 10 (ver
+    # incidente equivalente en R/06_simulation_plasmode.R,
+    # R/07_real_data_subsampling.R y R/10_simulation_categorias.R al
+    # agregar esta prueba).
+    rechazos <- NULL
     nombres_pruebas <- NULL
     t0 <- Sys.time()
     for (r in seq_len(R_replicas)) {
       x <- generador(n, valor)
       pvals <- run_battery(x)
-      if (is.null(nombres_pruebas)) nombres_pruebas <- names(pvals)
+      if (is.null(rechazos)) {
+        nombres_pruebas <- names(pvals)
+        rechazos <- matrix(NA, nrow = R_replicas, ncol = length(pvals))
+      }
       rechazos[r, ] <- pvals < 0.05
     }
     tasas <- colMeans(rechazos, na.rm = TRUE)

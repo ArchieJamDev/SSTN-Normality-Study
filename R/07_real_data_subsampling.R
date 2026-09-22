@@ -101,13 +101,20 @@ set.seed(20260918)
 filas <- list()
 idx <- 1
 for (n in n_grid) {
-  rechazos <- matrix(NA, nrow = R_replicas, ncol = 10)
+  # Numero de pruebas de la bateria detectado en la primera replica (11
+  # desde la adicion de Epps-Pulley) -- ya NO hardcodeado a 10 (ver
+  # incidente equivalente en R/06_simulation_plasmode.R y
+  # R/10_simulation_categorias.R al agregar esta prueba).
+  rechazos <- NULL
   nombres_pruebas <- NULL
   t0 <- Sys.time()
   for (r in seq_len(R_replicas)) {
     x <- sample(x_completo, size = n, replace = FALSE)
     pvals <- run_battery(x)
-    if (is.null(nombres_pruebas)) nombres_pruebas <- names(pvals)
+    if (is.null(rechazos)) {
+      nombres_pruebas <- names(pvals)
+      rechazos <- matrix(NA, nrow = R_replicas, ncol = length(pvals))
+    }
     rechazos[r, ] <- pvals < 0.05
   }
   tasas <- colMeans(rechazos, na.rm = TRUE)

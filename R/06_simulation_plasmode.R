@@ -5,8 +5,8 @@
 # R/04_moments_and_feasibility.R) y cada tamano de muestra del grid, genera
 # R replicas sinteticas via generar_plasmode() (R/05_calibration_plasmode.R,
 # distribucion GLD ajustada por igualacion de momentos -- ver DESIGN.md
-# seccion 16) y corre la bateria completa de 10 pruebas
-# (R/08_run_battery.R).
+# seccion 16) y corre la bateria completa de 11 pruebas
+# (R/08_run_battery.R, incluye Epps-Pulley desde sep 2026).
 #
 # A diferencia del Bloque 2 (una sola familia con un eje de parametro), aca
 # el eje que varia entre corridas es la subescala real (11 en total, ver
@@ -75,13 +75,20 @@ set.seed(20260918)
 filas <- list()
 idx <- 1
 for (n in n_grid) {
-  rechazos <- matrix(NA, nrow = R_replicas, ncol = 10)
+  # Numero de pruebas de la bateria detectado en la primera replica (11
+  # desde la adicion de Epps-Pulley) -- ya NO hardcodeado a 10 (ver
+  # incidente equivalente en R/07_real_data_subsampling.R y
+  # R/10_simulation_categorias.R al agregar esta prueba).
+  rechazos <- NULL
   nombres_pruebas <- NULL
   t0 <- Sys.time()
   for (r in seq_len(R_replicas)) {
     x <- generar_plasmode(subescala_elegida, n, calibracion)
     pvals <- run_battery(x)
-    if (is.null(nombres_pruebas)) nombres_pruebas <- names(pvals)
+    if (is.null(rechazos)) {
+      nombres_pruebas <- names(pvals)
+      rechazos <- matrix(NA, nrow = R_replicas, ncol = length(pvals))
+    }
     rechazos[r, ] <- pvals < 0.05
   }
   tasas <- colMeans(rechazos, na.rm = TRUE)

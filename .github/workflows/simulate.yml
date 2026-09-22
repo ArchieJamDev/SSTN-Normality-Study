@@ -46,14 +46,19 @@ on:
         default: false
 
       correr_agregacion:
-        description: "Agregar los CSV finales de data/results/ en un consolidado (R/99_aggregate_results.R) -- incluye el Bloque 5 (12 CSV), ver DESIGN.md seccion 31/33 -- paso activo"
-        type: boolean
-        default: true
-
-      correr_bloque5:
-        description: "Bloque 5 (simulate-categorias, matrix escenario x k = 12 shards, R=10000) -- efecto de la cantidad de categorias de respuesta -- cerrado, ver DESIGN.md secciones 32/33"
+        description: "Agregar los CSV finales de data/results/ en un consolidado (R/99_aggregate_results.R) -- correr de nuevo despues de cerrar el Bloque 5 para incluirlo"
         type: boolean
         default: false
+
+      correr_bloque5:
+        description: "Bloque 5 (simulate-categorias, matrix escenario x k = 72 shards desde la ampliacion sep 2026, antes 12) -- efecto de la cantidad de categorias de respuesta, ver DESIGN.md seccion 32"
+        type: boolean
+        default: false
+
+      correr_calibracion_bloque5_extendido:
+        description: "Calibra los umbrales que le faltan a la ampliacion del Bloque 5 (k=7,8 para los 3 escenarios ya publicados, y k=3..8 completo para las 9 subescalas reales nuevas) -- ver R/09b_calibrar_extension_bloque5.R. Correr ESTO antes de activar correr_bloque5 con la matrix ampliada, y consolidar+commitear su salida en data/results/calibracion_categorias_extendida.csv"
+        type: boolean
+        default: true
 
 jobs:
   # Piloto de tiempos (ya corrido con exito, ver notes/pilot_sstn_timing.txt
@@ -73,6 +78,7 @@ jobs:
             any::moments
             any::tseries
             any::fBasics
+            any::nortsTest
             any::gld
             any::SimMultiCorrData
       - name: Correr piloto de tiempos SSTN
@@ -82,9 +88,10 @@ jobs:
           name: pilot-sstn-timing
           path: notes/pilot_sstn_timing.txt
 
-  # Sanity check de la bateria completa (10 pruebas) sobre datos de juguete,
-  # antes de correr la simulacion en serio — confirma que las 9 pruebas
-  # clasicas + SSTN funcionan todas juntas sin errores de dependencias.
+  # Sanity check de la bateria completa (11 pruebas, incluye Epps-Pulley
+  # desde sep 2026) sobre datos de juguete, antes de correr la simulacion en
+  # serio — confirma que las 10 pruebas clasicas + SSTN funcionan todas
+  # juntas sin errores de dependencias.
   battery-sanity-check:
     if: ${{ inputs.correr_pilotos_y_reales }}
     runs-on: ubuntu-latest
@@ -99,9 +106,10 @@ jobs:
             any::moments
             any::tseries
             any::fBasics
+            any::nortsTest
             any::gld
             any::SimMultiCorrData
-      - name: Correr sanity check de la bateria de 10 pruebas
+      - name: Correr sanity check de la bateria de 11 pruebas
         run: Rscript R/08_run_battery.R
 
   # Extrae los puntajes de subescala reales (DASS, RIASEC, MACH-IV, RSE) desde
@@ -121,6 +129,7 @@ jobs:
             any::moments
             any::tseries
             any::fBasics
+            any::nortsTest
             any::gld
             any::SimMultiCorrData
       - name: Extraer subescalas reales (DASS, RIASEC, MACH-IV, RSE)
@@ -150,6 +159,7 @@ jobs:
             any::moments
             any::tseries
             any::fBasics
+            any::nortsTest
             any::gld
             any::SimMultiCorrData
       - uses: actions/download-artifact@v4
@@ -184,6 +194,7 @@ jobs:
             any::moments
             any::tseries
             any::fBasics
+            any::nortsTest
             any::gld
             any::SimMultiCorrData
       - uses: actions/download-artifact@v4
@@ -220,6 +231,7 @@ jobs:
             any::moments
             any::tseries
             any::fBasics
+            any::nortsTest
             any::gld
             any::SimMultiCorrData
       - uses: actions/download-artifact@v4
@@ -286,6 +298,7 @@ jobs:
             any::moments
             any::tseries
             any::fBasics
+            any::nortsTest
             any::gld
             any::SimMultiCorrData
       - uses: actions/download-artifact@v4
@@ -343,6 +356,7 @@ jobs:
             any::moments
             any::tseries
             any::fBasics
+            any::nortsTest
             any::gld
             any::SimMultiCorrData
       - uses: actions/download-artifact@v4
@@ -381,14 +395,74 @@ jobs:
           name: consolidado
           path: data/results/consolidado.csv
 
+  # Calibracion de la ampliacion del Bloque 5 (sep 2026, ver
+  # R/09b_calibrar_extension_bloque5.R): k=7,8 para los 3 escenarios ya
+  # publicados (A_simetrica, B1_riasec_realistic, B2_dass_depression) y
+  # k=3..8 completo para las 9 subescalas reales restantes de las 11 ya
+  # usadas en los Bloques 3-4 (C1..C9). No corre run_battery() ni depende de
+  # los paquetes de pruebas estadisticas -- solo optim() base y el CSV de
+  # momentos objetivo ya commiteado (data/processed/plasmode_calibration.csv,
+  # producido por moments-and-feasibility), por eso su lista de paquetes es
+  # mucho mas liviana que el resto de los jobs. Un shard por escenario (12),
+  # cada uno calibra internamente todos los k que le falten en un loop --
+  # cada celda tarda segundos, no minutos, asi que no hace falta un segundo
+  # eje en la matrix.
+  #
+  # PASO SIGUIENTE MANUAL tras esta corrida (no automatizado en este
+  # workflow, mismo criterio que el resto del proyecto -- ver comentario del
+  # job aggregate-results): descargar los 12 artifacts
+  # calibracion-categorias-<escenario>, concatenar sus CSV en uno solo
+  # (R/09c_consolidar_calibracion_extendida.R) y commitear el resultado como
+  # data/results/calibracion_categorias_extendida.csv -- R/09_calibration_categorias.R
+  # lo lee automaticamente al cargarse. Recien despues de eso
+  # simulate-categorias (abajo) puede correr las celdas nuevas.
+  calibrate-categorias-extendido:
+    if: ${{ inputs.correr_calibracion_bloque5_extendido }}
+    strategy:
+      matrix:
+        escenario:
+          - A_simetrica
+          - B1_riasec_realistic
+          - B2_dass_depression
+          - C1_dass_anxiety
+          - C2_dass_stress
+          - C3_mach_total
+          - C4_riasec_artistic
+          - C5_riasec_conventional
+          - C6_riasec_enterprising
+          - C7_riasec_investigative
+          - C8_riasec_social
+          - C9_rse_total
+      fail-fast: false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::readr
+            any::dplyr
+      - name: Calibrar celdas nuevas del Bloque 5 (Nelder-Mead)
+        run: Rscript R/09b_calibrar_extension_bloque5.R ${{ matrix.escenario }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: calibracion-categorias-${{ matrix.escenario }}
+          path: data/results/calibracion_categorias_${{ matrix.escenario }}.csv
+
   # Bloque 5 -- efecto de la cantidad de categorias de respuesta (k) sobre
   # la potencia de las pruebas de normalidad (ver notes/DESIGN.md seccion
-  # 32). Dos ejes cruzados (escenario x k = 12 celdas), a diferencia de los
-  # bloques anteriores (un solo eje) -- la matrix usa dos claves separadas,
-  # GitHub Actions arma el producto cruzado automaticamente (12 shards), sin
-  # necesidad de una lista de 12 pares escrita a mano. No depende de ningun
-  # otro job: los umbrales calibrados estan hardcodeados en
-  # R/09_calibration_categorias.R, no hace falta descargar ningun artifact.
+  # 32). Dos ejes cruzados (escenario x k = 72 celdas desde la ampliacion de
+  # sep 2026, antes 12), a diferencia de los bloques anteriores (un solo
+  # eje) -- la matrix usa dos claves separadas, GitHub Actions arma el
+  # producto cruzado automaticamente (72 shards), sin necesidad de una lista
+  # de pares escrita a mano. Requiere que data/results/calibracion_categorias_extendida.csv
+  # ya este commiteado en el repo (ver job calibrate-categorias-extendido de
+  # arriba) para las 9 celdas C1..C9 y para k=7,8 de A/B1/B2 -- los umbrales
+  # de k=3..6 de A/B1/B2 siguen hardcodeados en R/09_calibration_categorias.R
+  # como siempre. No depende de ningun otro job del workflow en tiempo de
+  # ejecucion (actions/checkout trae ambas fuentes ya commiteadas), no hace
+  # falta descargar ningun artifact.
   simulate-categorias:
     if: ${{ inputs.correr_bloque5 }}
     strategy:
@@ -397,7 +471,16 @@ jobs:
           - A_simetrica
           - B1_riasec_realistic
           - B2_dass_depression
-        k: [3, 4, 5, 6]
+          - C1_dass_anxiety
+          - C2_dass_stress
+          - C3_mach_total
+          - C4_riasec_artistic
+          - C5_riasec_conventional
+          - C6_riasec_enterprising
+          - C7_riasec_investigative
+          - C8_riasec_social
+          - C9_rse_total
+        k: [3, 4, 5, 6, 7, 8]
       fail-fast: false
     runs-on: ubuntu-latest
     steps:
@@ -411,6 +494,7 @@ jobs:
             any::moments
             any::tseries
             any::fBasics
+            any::nortsTest
             any::gld
             any::SimMultiCorrData
       - name: Bloque 5 completo (R=10000)
@@ -421,7 +505,7 @@ jobs:
           path: data/results/bloque5_${{ matrix.escenario }}_k${{ matrix.k }}.csv
 
   # Piloto de tiempos del Bloque 1 (replica directa): corre la bateria
-  # completa de 10 pruebas (no solo SSTN, que ya se midio en pilot-timing)
+  # completa de 11 pruebas (no solo SSTN, que ya se midio en pilot-timing)
   # con R chico (200 replicas) sobre las 8 familias del paper original, para
   # medir el costo real antes de comprometer R=10000 en el matrix completo.
   # No depende de otros jobs (genera datos sinteticos, no usa datos reales).
@@ -452,6 +536,7 @@ jobs:
             any::moments
             any::tseries
             any::fBasics
+            any::nortsTest
             any::gld
             any::SimMultiCorrData
       - name: Piloto de tiempos Bloque 1 (R=200)
@@ -494,6 +579,7 @@ jobs:
             any::moments
             any::tseries
             any::fBasics
+            any::nortsTest
             any::gld
             any::SimMultiCorrData
       - name: Bloque 1 completo (R=10000)
@@ -523,6 +609,7 @@ jobs:
             any::moments
             any::tseries
             any::fBasics
+            any::nortsTest
             any::gld
             any::SimMultiCorrData
       - name: Bloque 2 completo (R=10000)
@@ -554,6 +641,7 @@ jobs:
             any::moments
             any::tseries
             any::fBasics
+            any::nortsTest
             any::gld
             any::SimMultiCorrData
       - name: Exploratorio Bloque 2, n=1000 y n=1500 (R=10000)
