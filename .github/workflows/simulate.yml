@@ -435,6 +435,9 @@ jobs:
           - C9_rse_total
       fail-fast: false
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: r-lib/actions/setup-r@v2
@@ -443,6 +446,18 @@ jobs:
           packages: |
             any::readr
             any::dplyr
+      - uses: actions/download-artifact@v4
+        with:
+          # mismo motivo que en simulate-plasmode: el artifact trae
+          # data/processed/ y notes/ sin ancestro comun, se descarga a la
+          # raiz. run-id fijo (35375789088, ver comentario de
+          # simulate-plasmode) -- R/09b_calibrar_extension_bloque5.R lee
+          # data/processed/plasmode_calibration.csv para todo escenario
+          # que no sea A_simetrica.
+          name: plasmode-calibration
+          path: .
+          run-id: 35375789088
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Calibrar celdas nuevas del Bloque 5 (Nelder-Mead)
         run: Rscript R/09b_calibrar_extension_bloque5.R ${{ matrix.escenario }}
       - uses: actions/upload-artifact@v4
