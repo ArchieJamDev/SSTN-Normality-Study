@@ -1,0 +1,9 @@
+escenario,k,n,R,shapiro_wilk,anderson_darling,lilliefors,jarque_bera,dagostino_pearson,cramer_von_mises,shapiro_francia,pearson_chi2,curtosis,epps_pulley,sstn,shapiro_wilk_na,anderson_darling_na,lilliefors_na,jarque_bera_na,dagostino_pearson_na,cramer_von_mises_na,shapiro_francia_na,pearson_chi2_na,curtosis_na,epps_pulley_na,sstn_na,segundos
+B2_dass_depression,8,10,10000,0.0735,0.0721,0.0626,0.0029,NA,0.0669,0.0472,0.0838,0.0608,0.2372,0.039,0,0,0,0,10000,0,0,0,0,0,0,78.78507661819458
+B2_dass_depression,8,25,10000,0.2254,0.1936,0.1082,3e-4,0.2183,0.1617,0.0931,0.1138,0.377,0.5879,0.1535,0,0,0,0,0,0,0,0,0,0,0,79.95124506950378
+B2_dass_depression,8,50,10000,0.6326,0.5034,0.2518,4e-4,0.7249,0.3948,0.3699,0.2016,0.8416,0.852,0.523,0,0,0,0,0,0,0,0,0,0,0,75.92135405540466
+B2_dass_depression,8,100,10000,0.982,0.9008,0.5922,0.4097,0.9896,0.7858,0.9029,0.4441,0.9953,0.9859,0.9121,0,0,0,0,0,0,0,0,0,0,0,74.03766679763794
+B2_dass_depression,8,250,10000,1,1,0.9911,1,1,0.999,1,0.9804,1,1,1,0,0,0,0,0,0,0,0,0,0,0,82.39995169639587
+B2_dass_depression,8,500,10000,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,101.41235446929932
+B2_dass_depression,8,1000,10000,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,144.86972069740295
+B2_dass_depression,8,1500,10000,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,187.78649353981015

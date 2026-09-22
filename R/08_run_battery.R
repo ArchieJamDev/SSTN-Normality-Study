@@ -60,7 +60,13 @@ run_battery <- function(x) {
   p_shapiro_francia <- safe_p(nortest::sf.test(x)$p.value)
   p_pearson_chi2   <- safe_p(nortest::pearson.test(x)$p.value)
   p_curtosis       <- safe_p(moments::anscombe.test(x)$p.value)
-  p_epps_pulley    <- safe_p(nortsTest::epps.test(x, lambda = c(1, 2))$p.value)
+  # OJO: nortsTest::epps.test()$p.value viene como numeric con nombre interno
+  # "epps" (atributo names, no la etiqueta de la lista) -- sin unname(), al
+  # combinarlo en el c() de abajo como epps_pulley=p_epps_pulley, R concatena
+  # ambos nombres y la columna queda "epps_pulley.epps" en vez de
+  # "epps_pulley". Mismo tipo de trampa ya documentada arriba para
+  # fBasics::dagoTest() (que se resuelve ahi con unname() + grepl()).
+  p_epps_pulley    <- safe_p(unname(nortsTest::epps.test(x, lambda = c(1, 2))$p.value))
   p_sstn           <- safe_p(sstn::sstn(x, verbose = FALSE)$p.value)
 
   c(

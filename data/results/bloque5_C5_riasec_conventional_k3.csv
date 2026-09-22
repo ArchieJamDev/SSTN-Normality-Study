@@ -1,0 +1,9 @@
+escenario,k,n,R,shapiro_wilk,anderson_darling,lilliefors,jarque_bera,dagostino_pearson,cramer_von_mises,shapiro_francia,pearson_chi2,curtosis,epps_pulley,sstn,shapiro_wilk_na,anderson_darling_na,lilliefors_na,jarque_bera_na,dagostino_pearson_na,cramer_von_mises_na,shapiro_francia_na,pearson_chi2_na,curtosis_na,epps_pulley_na,sstn_na,segundos
+C5_riasec_conventional,3,10,10000,0.1033,0.0962,0.0853,0.0083,NA,0.0872,0.0845,0.1261,0.0515,0.1757,0.0617,0,0,0,0,10000,0,0,0,0,0,0,98.19462656974792
+C5_riasec_conventional,3,25,10000,0.3084,0.2315,0.1791,0.0181,0.0952,0.1765,0.1973,0.2181,0.1174,0.3444,0.1327,0,0,0,0,0,0,0,0,0,0,0,99.2953643798828
+C5_riasec_conventional,3,50,10000,0.7591,0.5759,0.4349,0.0413,0.1966,0.4131,0.5832,0.43,0.193,0.5139,0.3232,0,0,0,0,0,0,0,0,0,0,0,94.5044927597046
+C5_riasec_conventional,3,100,10000,0.9967,0.9568,0.8603,0.2945,0.579,0.8251,0.9822,0.7902,0.313,0.7435,0.6821,0,0,0,0,0,0,0,0,0,0,0,90.82155776023863
+C5_riasec_conventional,3,250,10000,1,1,1,0.9956,0.9988,1,1,1,0.6399,0.985,0.9965,0,0,0,0,0,0,0,0,0,0,0,99.51414775848389
+C5_riasec_conventional,3,500,10000,1,1,1,1,1,1,1,1,0.911,1,1,0,0,0,0,0,0,0,0,0,0,0,116.2440972328186
+C5_riasec_conventional,3,1000,10000,1,1,1,1,1,1,1,1,0.9977,1,1,0,0,0,0,0,0,0,0,0,0,0,153.3201379776001
+C5_riasec_conventional,3,1500,10000,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,191.7444202899933
