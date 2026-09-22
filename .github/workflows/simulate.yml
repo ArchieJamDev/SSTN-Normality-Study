@@ -64,9 +64,9 @@ on:
         default: false
 
       correr_calibracion_bloque5_extendido:
-        description: "Calibra los umbrales que le faltan a la ampliacion del Bloque 5 (k=7,8 para los 3 escenarios ya publicados, y k=3..8 completo para las 9 subescalas reales nuevas) -- ver R/09b_calibrar_extension_bloque5.R. Correr ESTO antes de activar correr_bloque5 con la matrix ampliada, y consolidar+commitear su salida en data/results/calibracion_categorias_extendida.csv"
+        description: "Calibra los umbrales que le faltan a la ampliacion del Bloque 5 (k=7,8 para los 3 escenarios ya publicados, y k=3..8 completo para las 9 subescalas reales nuevas) -- ver R/09b_calibrar_extension_bloque5.R. YA CERRADO (consolidado en data/results/calibracion_categorias_extendida.csv, commiteado); solo re-correr explicitamente si hace falta recalibrar"
         type: boolean
-        default: true
+        default: false
 
 jobs:
   # Piloto de tiempos (ya corrido con exito, ver notes/pilot_sstn_timing.txt
@@ -673,8 +673,3 @@ jobs:
         with:
           name: platykurtic-explore-n-alto
           path: data/results/bloque2_beta_n1000-1500.csv
-
-  # TODO: job "simulate" para el Bloque 3 (calibracion plasmode, mismo patron).
-  #
-  # TODO: job final "aggregate" que descarga todos los artifacts del matrix y
-  #       corre R/99_aggregate_results.R.

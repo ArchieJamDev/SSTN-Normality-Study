@@ -11,13 +11,14 @@
 #   Bloque 2 (platicurtico, Beta(a,a), 1 archivo):            familia, parametro
 #   Bloque 3 (plasmode/GLD, 11 subescalas, 1 archivo consolidado): subescala
 #   Bloque 4 (remuestreo real, 11 subescalas, 1 archivo consolidado): subescala, instrumento, N
-#   Bloque 5 (cantidad de categorias de respuesta, 12 archivos, uno por
-#             escenario x k): escenario, k
+#   Bloque 5 (cantidad de categorias de respuesta, 72 archivos, uno por
+#             escenario x k -- ampliacion sep 2026, antes 12): escenario, k
 #
-# Las cinco comparten: n, R, las 10 pruebas (tasa de rechazo) + sus 10
-# columnas _na, y segundos. Se unifican en un solo data.frame ancho,
-# agregando `bloque` (1-5) y `bloque_nombre`, con NA en las columnas
-# identificadoras que no aplican a cada bloque.
+# Las cinco comparten: n, R, las 11 pruebas (tasa de rechazo, incluye
+# Epps-Pulley desde sep 2026) + sus 11 columnas _na, y segundos. Se
+# unifican en un solo data.frame ancho, agregando `bloque` (1-5) y
+# `bloque_nombre`, con NA en las columnas identificadoras que no aplican a
+# cada bloque.
 #
 # A diferencia del resto de los scripts del proyecto, este NO hace
 # source("R/00_setup.R"): no necesita ninguno de los paquetes de pruebas
@@ -31,7 +32,7 @@
 columnas_pruebas <- c(
   "shapiro_wilk", "anderson_darling", "lilliefors", "jarque_bera",
   "dagostino_pearson", "cramer_von_mises", "shapiro_francia",
-  "pearson_chi2", "curtosis", "sstn"
+  "pearson_chi2", "curtosis", "epps_pulley", "sstn"
 )
 columnas_na <- paste0(columnas_pruebas, "_na")
 columnas_comunes <- c("n", "R", columnas_pruebas, columnas_na, "segundos")
@@ -67,10 +68,11 @@ b3 <- completar_columnas(b3, 3L, "Plasmode calibrado a datos reales (GLD)")
 b4 <- readr::read_csv("data/results/bloque4_real.csv", show_col_types = FALSE)
 b4 <- completar_columnas(b4, 4L, "Remuestreo m-out-of-N sobre datos reales")
 
-# Bloque 5: 12 archivos, uno por escenario x k (ver DESIGN.md seccion 32)
+# Bloque 5: 72 archivos, uno por escenario x k (12 escenarios x k=3..8 --
+# ampliacion sep 2026, ver DESIGN.md seccion 32)
 archivos_b5 <- sort(Sys.glob("data/results/bloque5_*.csv"))
-if (length(archivos_b5) != 12) {
-  stop(sprintf("Se esperaban 12 archivos del Bloque 5, se encontraron %d.", length(archivos_b5)))
+if (length(archivos_b5) != 72) {
+  stop(sprintf("Se esperaban 72 archivos del Bloque 5, se encontraron %d.", length(archivos_b5)))
 }
 b5 <- do.call(rbind, lapply(archivos_b5, readr::read_csv, show_col_types = FALSE))
 b5 <- completar_columnas(b5, 5L, "Cantidad de categorias de respuesta (k)")
@@ -79,7 +81,7 @@ consolidado <- rbind(b1, b2, b3, b4, b5)
 
 # Chequeos de sanidad antes de guardar: conteos de fila esperados por bloque
 # (ver notes/DESIGN.md secciones 22, 23, 28, 29, 32).
-conteos_esperados <- c(`1` = 288L, `2` = 48L, `3` = 88L, `4` = 77L, `5` = 96L)
+conteos_esperados <- c(`1` = 288L, `2` = 48L, `3` = 88L, `4` = 77L, `5` = 576L)
 conteos_reales <- table(consolidado$bloque)
 for (b in names(conteos_esperados)) {
   n_esperado <- conteos_esperados[[b]]
