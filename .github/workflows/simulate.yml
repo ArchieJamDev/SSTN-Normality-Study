@@ -14,6 +14,14 @@
 
 name: Simulacion SSTN
 
+# Titulo de la corrida en la lista de Actions: por defecto GitHub repite el
+# nombre del workflow en cada dispatch, indistinguible una corrida de otra.
+# Arma un titulo legible concatenando que bloque(s) se activaron con -f
+# (normalmente uno solo, pero puede ser mas de uno en el mismo dispatch).
+run-name: >-
+  Simulacion SSTN:
+  ${{ inputs.correr_calibracion_bloque5_extendido && 'Calibracion Bloque 5 ext. (12 escenarios) ' || '' }}${{ inputs.correr_bloque5 && 'Bloque 5 -- categorias (72 shards) ' || '' }}${{ inputs.correr_bloque1 && 'Bloque 1 -- clasico (8 familias) ' || '' }}${{ inputs.correr_bloque2 && 'Bloque 2 -- platicurtica Beta ' || '' }}${{ inputs.correr_bloque2_explorar_n_alto && 'Bloque 2 -- explorar n alto ' || '' }}${{ inputs.correr_bloque3 && 'Bloque 3 -- plasmode (11 subescalas) ' || '' }}${{ inputs.correr_bloque4 && 'Bloque 4 -- remuestreo real (11 subescalas) ' || '' }}${{ inputs.correr_agregacion && 'Agregacion de resultados ' || '' }}${{ inputs.correr_pilotos_y_reales && 'Pilotos + datos reales ' || '' }}
+
 on:
   workflow_dispatch:
     inputs:
